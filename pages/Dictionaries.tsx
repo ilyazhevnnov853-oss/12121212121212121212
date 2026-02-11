@@ -1,18 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useStore } from '../store';
 import { DictionaryItem, ReservedRange } from '../types';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { Plus, Trash2, ShieldAlert } from 'lucide-react';
+import { Plus, Trash2, ShieldAlert, Upload, Download, Save, RefreshCw } from 'lucide-react';
 
 export const Dictionaries: React.FC = () => {
-  const { dictionaries, addDictionaryItem, deleteDictionaryItem, reservedRanges, addReservedRange, deleteReservedRange } = useStore();
+  const { 
+      dictionaries, addDictionaryItem, importDictionaryItems, deleteDictionaryItem, 
+      reservedRanges, addReservedRange, deleteReservedRange, 
+      loadProjectData, tags, templates, counters 
+  } = useStore();
   
   // State for new dictionary item
   const [newItem, setNewItem] = useState<Partial<DictionaryItem>>({ category: 'Проект', code: '', value: '' });
   
   // State for new reserved range
   const [newRange, setNewRange] = useState<Partial<ReservedRange>>({ start: 0, end: 0, reason: '' });
+
+  // Refs for file inputs
+  const csvInputRef = useRef<HTMLInputElement>(null);
+  const backupInputRef = useRef<HTMLInputElement>(null);
+
+  // --- Logic ---
 
   const handleAddDict = () => {
     if (newItem.category && newItem.code && newItem.value) {
@@ -39,6 +49,75 @@ export const Dictionaries: React.FC = () => {
     }
   }
 
+  // --- Import / Export Logic ---
+
+  const handleBackup = () => {
+      const data = { tags, templates, dictionaries, reservedRanges, counters };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `TagEngine_Backup_${new Date().toISOString().slice(0,10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+  };
+
+  const handleRestore = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+          try {
+              const data = JSON.parse(event.target?.result as string);
+              if (data.tags && data.templates) {
+                  loadProjectData(data);
+                  alert("База данных успешно восстановлена.");
+              } else {
+                  alert("Неверный формат файла бэкапа.");
+              }
+          } catch (err) {
+              alert("Ошибка чтения файла.");
+          }
+      };
+      reader.readAsText(file);
+      e.target.value = ''; // Reset
+  };
+
+  const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+          const text = event.target?.result as string;
+          const lines = text.split('\n');
+          const newItems: DictionaryItem[] = [];
+          
+          // Simple CSV parser: Category,Code,Value,Description
+          lines.forEach((line, idx) => {
+              if (idx === 0 && line.includes('Category')) return; // Skip header
+              const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+              if (cols.length >= 3) {
+                  newItems.push({
+                      id: crypto.randomUUID(),
+                      category: cols[0],
+                      code: cols[1],
+                      value: cols[2],
+                      description: cols[3] || ''
+                  });
+              }
+          });
+
+          if (newItems.length > 0) {
+              importDictionaryItems(newItems);
+              alert(`Импортировано ${newItems.length} записей.`);
+          }
+      };
+      reader.readAsText(file);
+      e.target.value = ''; // Reset
+  };
+
   // Get unique categories
   const categories = Array.from(new Set(dictionaries.map(d => d.category)));
   const [filterCategory, setFilterCategory] = useState<string>('Все');
@@ -51,13 +130,32 @@ export const Dictionaries: React.FC = () => {
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-slate-800">Справочники и Настройки</h1>
-        <p className="text-slate-500">Управление справочными данными и диапазонами нумерации.</p>
+        <p className="text-slate-500">Управление справочными данными, импорт/экспорт и диапазоны нумерации.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* Left Column: Dictionaries */}
         <div className="lg:col-span-2 space-y-4">
+          
+          {/* Management Panel */}
+          <div className="bg-slate-800 text-white p-6 rounded-xl shadow-sm flex justify-between items-center">
+             <div>
+                <h2 className="text-lg font-bold mb-1">Управление данными</h2>
+                <p className="text-xs text-slate-400">Бэкапы проекта и массовый импорт</p>
+             </div>
+             <div className="flex gap-2">
+                <Button variant="secondary" size="sm" icon={<Upload size={14}/>} onClick={() => csvInputRef.current?.click()}>Импорт CSV</Button>
+                <input type="file" accept=".csv" ref={csvInputRef} hidden onChange={handleImportCSV} />
+
+                <div className="h-8 w-px bg-slate-600 mx-2"></div>
+
+                <Button variant="secondary" size="sm" icon={<Save size={14}/>} onClick={handleBackup}>Скачать Бэкап</Button>
+                <Button variant="ghost" className="text-slate-300 hover:text-white" size="sm" icon={<RefreshCw size={14}/>} onClick={() => backupInputRef.current?.click()}>Восстановить</Button>
+                <input type="file" accept=".json" ref={backupInputRef} hidden onChange={handleRestore} />
+             </div>
+          </div>
+
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
              <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-bold">Справочные значения</h2>

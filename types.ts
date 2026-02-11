@@ -1,6 +1,13 @@
 export type TagStatus = 'draft' | 'active' | 'review' | 'approved' | 'archived';
 
-export type BlockType = 'text' | 'number' | 'separator' | 'dictionary' | 'parent';
+export type BlockType = 'text' | 'number' | 'separator' | 'dictionary' | 'parent' | 'placeholder';
+
+export interface User {
+  id: string;
+  name: string;
+  role: string; // e.g., "Senior Engineer"
+  email: string;
+}
 
 export interface AuditLog {
   action: string;
@@ -25,6 +32,7 @@ export interface TemplateBlock {
   categoryId?: string; // For dictionary
   subCategoryId?: string; // For dictionary
   isAutoIncrement?: boolean; // For number
+  isSuffix?: boolean; // For text (enables A, B, C iteration)
   padding?: number; // For number (e.g., 3 for 001)
   separator?: string; // specific separator char
 }
@@ -58,8 +66,11 @@ export interface ReservedRange {
 }
 
 export interface AppState {
+  currentUser: User | null;
   tags: Tag[];
   templates: Template[];
   dictionaries: DictionaryItem[];
   reservedRanges: ReservedRange[];
+  // Optimization: Track last used number for each prefix (Prefix -> LastNumber)
+  counters: Record<string, number>;
 }

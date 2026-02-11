@@ -1,14 +1,20 @@
 import React, { useState } from 'react';
-import { StoreProvider } from './store';
+import { useStore, StoreProvider } from './store';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { Builder } from './pages/Builder';
 import { Generator } from './pages/Generator';
 import { Registry } from './pages/Registry';
 import { Dictionaries } from './pages/Dictionaries';
+import { Login } from './pages/Login';
 
 const AppContent: React.FC = () => {
+  const { currentUser } = useStore();
   const [activeTab, setActiveTab] = useState('dashboard');
+
+  if (!currentUser) {
+      return <Login />;
+  }
 
   const renderContent = () => {
     switch (activeTab) {
