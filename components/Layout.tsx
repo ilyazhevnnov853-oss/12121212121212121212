@@ -13,11 +13,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const navItems = [
-    { id: 'dashboard', label: 'Дашборд', icon: LayoutDashboard },
-    { id: 'builder', label: 'Конструктор', icon: PenTool },
-    { id: 'generator', label: 'Генератор', icon: TagIcon },
+    { id: 'dashboard', label: 'Статистика проекта', icon: LayoutDashboard },
     { id: 'registry', label: 'Реестр тегов', icon: Database },
-    { id: 'dictionaries', label: 'Справочники', icon: Settings },
+    { id: 'builder', label: 'Конструктор шаблонов', icon: PenTool },
+    { id: 'generator', label: 'Создание тега', icon: TagIcon },
+    { id: 'dictionaries', label: 'Данные проекта', icon: Settings },
   ];
 
   return (

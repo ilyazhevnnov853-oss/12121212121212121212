@@ -143,7 +143,7 @@ export const Dictionaries: React.FC = () => {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">Справочники и Настройки</h1>
+        <h1 className="text-2xl font-bold text-slate-800">Данные проекта</h1>
         <p className="text-slate-500">Управление справочными данными, переменными проекта и диапазонами.</p>
         {!isAdmin && <p className="text-xs text-red-500 mt-2 flex items-center gap-1"><Lock size={12}/> Режим только для чтения (Требуются права Администратора)</p>}
       </div>
