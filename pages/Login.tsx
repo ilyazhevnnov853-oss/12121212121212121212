@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { useStore } from '../store';
 import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
 import { Tag, Lock, User, Activity } from 'lucide-react';
 
 export const Login: React.FC = () => {
   const { login } = useStore();
   const [username, setUsername] = useState('Engineer');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = (e: React.FormEvent) => {
@@ -21,7 +21,7 @@ export const Login: React.FC = () => {
             name: username || 'User',
             role: 'Senior Engineer',
             email: 'engineer@pdh2.project'
-        });
+        }, rememberMe);
         setIsLoading(false);
     }, 800);
   };
@@ -66,6 +66,18 @@ export const Login: React.FC = () => {
                                 className="w-full bg-slate-900/50 border border-slate-600 text-white rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder-slate-500"
                                 placeholder="Пароль"
                             />
+                        </div>
+                        <div className="flex items-center">
+                            <input 
+                                id="remember-me" 
+                                type="checkbox" 
+                                checked={rememberMe}
+                                onChange={(e) => setRememberMe(e.target.checked)}
+                                className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900" 
+                            />
+                            <label htmlFor="remember-me" className="ml-2 block text-sm text-slate-400 select-none cursor-pointer">
+                                Запомнить меня
+                            </label>
                         </div>
                     </div>
 

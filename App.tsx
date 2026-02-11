@@ -7,15 +7,23 @@ import { Generator } from './pages/Generator';
 import { Registry } from './pages/Registry';
 import { Dictionaries } from './pages/Dictionaries';
 import { Login } from './pages/Login';
+import { ProjectsDashboard } from './pages/ProjectsDashboard';
 
 const AppContent: React.FC = () => {
-  const { currentUser } = useStore();
+  const { currentUser, currentProjectId } = useStore();
   const [activeTab, setActiveTab] = useState('dashboard');
 
+  // 1. Not Logged In
   if (!currentUser) {
       return <Login />;
   }
 
+  // 2. Logged In, No Project Selected
+  if (!currentProjectId) {
+      return <ProjectsDashboard />;
+  }
+
+  // 3. Project Selected (Main App)
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <Dashboard />;
