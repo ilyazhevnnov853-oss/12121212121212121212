@@ -58,7 +58,8 @@ export const Generator: React.FC = () => {
                       if (block.parentSource === 'full_tag') {
                           resolvedValue = parentTag.fullTag;
                       } else if (block.parentSource === 'wbs') {
-                          const wbsBlock = parentTemplate.blocks.find(pb => pb.categoryId?.includes('WBS') || pb.categoryId?.includes('System'));
+                          // Check for old WBS/System or new Project Code
+                          const wbsBlock = parentTemplate.blocks.find(pb => pb.categoryId === 'Проект' || pb.categoryId === 'Код проекта' || pb.categoryId?.includes('WBS') || pb.categoryId?.includes('System'));
                           if (wbsBlock) resolvedValue = parentTag.parts[wbsBlock.id] || '';
                       } else if (block.parentSource === 'number') {
                           const numBlock = parentTemplate.blocks.find(pb => pb.type === 'number');

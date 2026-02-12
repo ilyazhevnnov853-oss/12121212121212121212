@@ -5,7 +5,7 @@ import { Tag, Lock, User, Activity } from 'lucide-react';
 
 export const Login: React.FC = () => {
   const { login } = useStore();
-  const [username, setUsername] = useState('Engineer');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -40,8 +40,7 @@ export const Login: React.FC = () => {
                 <div className="inline-flex items-center justify-center p-4 bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 mb-4">
                     <Tag className="w-10 h-10 text-blue-500" />
                 </div>
-                <h1 className="text-3xl font-bold text-white tracking-tight">TagEngine <span className="text-blue-500">Pro</span></h1>
-                <p className="text-slate-400 mt-2 text-sm">Система управления инженерными данными</p>
+                <h1 className="text-3xl font-bold text-white tracking-tight">TagEngine</h1>
             </div>
 
             <div className="bg-white/5 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-8 shadow-2xl">
@@ -54,7 +53,6 @@ export const Login: React.FC = () => {
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
                                 className="w-full bg-slate-900/50 border border-slate-600 text-white rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder-slate-500"
-                                placeholder="Логин (например, Engineer)"
                             />
                         </div>
                         <div className="relative group">
@@ -64,7 +62,6 @@ export const Login: React.FC = () => {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 className="w-full bg-slate-900/50 border border-slate-600 text-white rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder-slate-500"
-                                placeholder="Пароль"
                             />
                         </div>
                         <div className="flex items-center">
@@ -89,10 +86,6 @@ export const Login: React.FC = () => {
                         {isLoading ? <Activity className="animate-spin" /> : 'Войти в систему'}
                     </Button>
                 </form>
-                
-                <div className="mt-6 pt-6 border-t border-slate-700/50 text-center">
-                    <p className="text-xs text-slate-500">PDH2 Project &bull; Authorized Personnel Only</p>
-                </div>
             </div>
         </div>
     </div>

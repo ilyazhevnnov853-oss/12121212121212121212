@@ -146,7 +146,7 @@ export const Builder: React.FC = () => {
                               Копировать Номер (из авто-счетчика)
                           </button>
                           <button onClick={() => applyConfiguration({ type: 'parent_ref', parentSource: 'wbs' })} className="w-full text-left px-3 py-2 text-sm hover:bg-purple-50 text-purple-700 rounded-md mb-1">
-                              Копировать WBS/Систему
+                              Копировать Код Проекта/WBS
                           </button>
                           <button onClick={() => applyConfiguration({ type: 'parent_ref', parentSource: 'full_tag' })} className="w-full text-left px-3 py-2 text-sm hover:bg-purple-50 text-purple-700 rounded-md">
                               Копировать Полный Тег
@@ -255,32 +255,46 @@ export const Builder: React.FC = () => {
     <div className="h-full flex flex-col space-y-6" ref={containerRef}>
        
        {/* Top Header */}
-       <div className="flex justify-between items-start bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-        <div className="flex-1 max-w-2xl grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Название шаблона</label>
-                <Input 
-                    value={templateName} 
-                    onChange={e => setTemplateName(e.target.value)} 
-                    placeholder="Например: PDH2 Механика" 
-                    className="font-bold text-lg border-slate-300"
-                />
+       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col gap-6">
+            
+            {/* Preview Section - Full Width */}
+            <div className="w-full">
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Предпросмотр</label>
+                <div className="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-lg flex items-center shadow-inner min-h-[52px]">
+                    <div className="font-mono font-bold tracking-widest text-lg truncate text-green-400 w-full">
+                        {previewText || '...'}
+                    </div>
+                </div>
             </div>
-            <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Описание</label>
-                <Input 
-                    value={templateDesc} 
-                    onChange={e => setTemplateDesc(e.target.value)} 
-                    placeholder="Для оборудования..." 
-                />
+
+            {/* Inputs & Actions Section */}
+            <div className="flex items-end gap-4">
+                <div className="w-1/3">
+                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Название шаблона</label>
+                    <input 
+                        value={templateName} 
+                        onChange={e => setTemplateName(e.target.value)} 
+                        className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all placeholder-transparent"
+                        placeholder=""
+                    />
+                </div>
+                <div className="flex-1">
+                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Описание</label>
+                    <input 
+                        value={templateDesc} 
+                        onChange={e => setTemplateDesc(e.target.value)} 
+                        className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all placeholder-transparent"
+                        placeholder=""
+                    />
+                </div>
+                <button 
+                    onClick={handleSave}
+                    className="h-[42px] w-[42px] bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center justify-center shadow-sm transition-colors flex-shrink-0"
+                    title="Сохранить"
+                >
+                    <Save size={20} />
+                </button>
             </div>
-        </div>
-        <div className="flex flex-col items-end gap-2 ml-4">
-             <div className="bg-slate-900 text-green-400 px-4 py-2 rounded-lg font-mono font-bold tracking-widest text-lg shadow-inner border border-slate-700 min-w-[200px] text-center">
-                {previewText || 'ПУСТО'}
-             </div>
-             <Button onClick={handleSave} icon={<Save size={18} />}>Сохранить</Button>
-        </div>
       </div>
 
       {/* Main Canvas Area */}

@@ -5,9 +5,18 @@ import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { 
     Search, Filter, Trash2, X, Copy, Download, 
-    CheckSquare, Square, ChevronLeft, ChevronRight, ChevronDown, ChevronRight as ChevronIcon,
-    FileInput, CheckCircle, AlertCircle, PenLine, Save, RotateCcw, FolderTree, List
+    CheckSquare, Square, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ChevronRight as ChevronIcon,
+    FileInput, CheckCircle, AlertCircle, PenLine, Save, RotateCcw, FolderTree, List, Clock, FileText
 } from 'lucide-react';
+
+const STATUS_MAP: Record<string, string> = {
+    'active': 'Активен',
+    'draft': 'Черновик',
+    'review': 'На проверке',
+    'approved': 'Утвержден',
+    'reserved': 'Занят',
+    'archived': 'Архив'
+};
 
 export const Registry: React.FC = () => {
   const { 
@@ -31,6 +40,10 @@ export const Registry: React.FC = () => {
   const [editFormData, setEditFormData] = useState<Record<string, string>>({}); 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [notification, setNotification] = useState<{msg: string, type: 'success' | 'error'} | null>(null);
+
+  // Visibility toggle for History and Notes
+  const [showNotes, setShowNotes] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   // Constants
   const ITEMS_PER_PAGE = 20;
@@ -86,6 +99,8 @@ export const Registry: React.FC = () => {
       setSelectedTag(tag);
       setEditFormData({...tag.parts});
       setIsEditMode(true);
+      setShowNotes(true); // Auto-show notes when editing
+      setShowHistory(false);
   };
 
   const handleSaveEdit = () => {
@@ -226,10 +241,6 @@ export const Registry: React.FC = () => {
 
       displayTags.forEach(tag => {
           if (!tag.parentId || !tags.find(p => p.id === tag.parentId)) {
-              // If no parent, or parent doesn't exist in the current filtered set (or generally), treat as root
-              // Note: For strict tree view, we might only want actual roots (parentId === undefined).
-              // But if we filter by status, we might see children whose parents are hidden. 
-              // For simplicity: If not searching, we show strictly structured tree.
               if (!tag.parentId) roots.push(tag);
               else {
                    if (!childrenMap[tag.parentId]) childrenMap[tag.parentId] = [];
@@ -238,11 +249,10 @@ export const Registry: React.FC = () => {
           }
       });
       
-      // Sort by creation desc
       roots.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       
       return { roots, childrenMap };
-  }, [displayTags, tags]); // Depend on 'tags' to check parent existence if needed
+  }, [displayTags, tags]);
 
   // --- Helper: Render Row ---
   const renderRow = (tag: Tag, level: number = 0) => {
@@ -254,10 +264,10 @@ export const Registry: React.FC = () => {
       return (
           <React.Fragment key={tag.id}>
             <tr 
-                onClick={() => { setSelectedTag(tag); setIsEditMode(false); }}
+                onClick={() => { setSelectedTag(tag); setIsEditMode(false); setShowNotes(false); setShowHistory(false); }}
                 className={`group cursor-pointer hover:bg-slate-50 transition-colors border-l-4 ${isSelected ? 'bg-blue-50/50 border-l-blue-500' : 'border-l-transparent'}`}
             >
-                <td className="px-4 py-3 text-center w-12" onClick={(e) => e.stopPropagation()}>
+                <td className="px-4 py-3 text-center w-12 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                     <button 
                         onClick={() => {
                             const newSet = new Set(selectedIds);
@@ -270,7 +280,7 @@ export const Registry: React.FC = () => {
                         {isChecked ? <CheckSquare size={18}/> : <Square size={18} />}
                     </button>
                 </td>
-                <td className="px-6 py-3">
+                <td className="px-6 py-3 whitespace-nowrap">
                     <div className="flex items-center" style={{ paddingLeft: `${level * 24}px` }}>
                         {/* Tree Expander */}
                         {hasChildren && !isSearchActive ? (
@@ -295,20 +305,21 @@ export const Registry: React.FC = () => {
                         </div>
                     </div>
                 </td>
-                <td className="px-6 py-3 text-slate-600">
+                <td className="px-6 py-3 text-slate-600 whitespace-nowrap">
                     {templates.find(t => t.id === tag.templateId)?.name || <span className="text-red-400 italic">Шаблон удален</span>}
                 </td>
-                <td className="px-6 py-3">
+                <td className="px-6 py-3 whitespace-nowrap">
                     <span className={`px-2.5 py-0.5 inline-flex text-xs font-bold uppercase tracking-wide rounded-full border ${
                         tag.status === 'active' ? 'bg-green-100 text-green-700 border-green-200' :
                         tag.status === 'draft' ? 'bg-slate-100 text-slate-600 border-slate-200' :
                         tag.status === 'approved' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                        tag.status === 'reserved' ? 'bg-red-50 text-red-700 border-red-200' :
                         'bg-slate-100 text-slate-600'
                     }`}>
-                        {tag.status}
+                        {STATUS_MAP[tag.status] || tag.status}
                     </span>
                 </td>
-                <td className="px-6 py-3 text-right">
+                <td className="px-6 py-3 text-right whitespace-nowrap">
                     <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={(e) => { e.stopPropagation(); handleCopy(tag.fullTag); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Copy size={16}/></button>
                         <button onClick={(e) => { e.stopPropagation(); handleEditClick(tag); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded"><PenLine size={16}/></button>
@@ -327,18 +338,16 @@ export const Registry: React.FC = () => {
 
   // --- Main Render ---
 
-  // Decide what to render: List vs Tree
   const tagsToRender = isSearchActive || viewMode === 'list' 
-      ? displayTags // Flat list
-      : roots; // Roots only (recursion handles children)
+      ? displayTags 
+      : roots;
 
-  // Pagination (Applies to Roots in Tree Mode, or Items in List Mode)
   const totalItems = tagsToRender.length;
   const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
   const paginatedItems = tagsToRender.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
   return (
-    <div className="flex h-full gap-6 relative">
+    <div className="flex h-full gap-4 relative">
       
       {/* Toast */}
       {notification && (
@@ -349,7 +358,7 @@ export const Registry: React.FC = () => {
       )}
 
       {/* Main Panel */}
-      <div className="flex-1 flex flex-col h-full bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className={`flex flex-col h-full bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden transition-all duration-300 min-w-0 ${selectedTag ? 'flex-[4]' : 'flex-1'}`}>
          
          {/* Toolbar */}
          <div className="p-4 border-b border-slate-200 space-y-4 bg-slate-50/50">
@@ -365,7 +374,6 @@ export const Registry: React.FC = () => {
                     />
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                    {/* View Switcher */}
                     <div className="flex bg-slate-200 rounded-lg p-1 mr-2">
                         <button 
                             onClick={() => setViewMode('tree')} 
@@ -397,6 +405,10 @@ export const Registry: React.FC = () => {
                                 { value: 'all', label: 'Все статусы' },
                                 { value: 'active', label: 'Активен' },
                                 { value: 'draft', label: 'Черновик' },
+                                { value: 'reserved', label: 'Занят' },
+                                { value: 'review', label: 'На проверке' },
+                                { value: 'approved', label: 'Утвержден' },
+                                { value: 'archived', label: 'Архив' },
                             ]}
                             value={filterStatus}
                             onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
@@ -430,12 +442,12 @@ export const Registry: React.FC = () => {
                                 <Square size={18} />
                             </button>
                         </th>
-                        <th className="px-6 py-3 text-left">
+                        <th className="px-6 py-3 text-left whitespace-nowrap">
                             {viewMode === 'tree' && !isSearchActive ? 'Иерархия тегов' : 'Список тегов'}
                         </th>
-                        <th className="px-6 py-3 text-left">Шаблон</th>
-                        <th className="px-6 py-3 text-left">Статус</th>
-                        <th className="px-6 py-3 text-right">Действия</th>
+                        <th className="px-6 py-3 text-left whitespace-nowrap">НАИМЕНОВАНИЕ</th>
+                        <th className="px-6 py-3 text-left whitespace-nowrap">Статус</th>
+                        <th className="px-6 py-3 text-right whitespace-nowrap">Действия</th>
                     </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-slate-100">
@@ -454,15 +466,12 @@ export const Registry: React.FC = () => {
          </div>
 
          {/* Pagination */}
-         <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
-             <span className="text-xs text-slate-500">
-                 {isSearchActive ? 'Режим поиска' : (viewMode === 'tree' ? 'Корневые узлы' : 'Все записи')}
-             </span>
+         <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end">
              <div className="flex gap-2">
                  <Button variant="secondary" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>
                      <ChevronLeft size={16}/>
                  </Button>
-                 <span className="flex items-center px-2 text-sm font-medium text-slate-700">
+                 <span className="flex items-center px-2 text-sm font-medium text-slate-700 whitespace-nowrap">
                      Стр. {page} из {Math.max(1, totalPages)}
                  </span>
                  <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
@@ -474,7 +483,7 @@ export const Registry: React.FC = () => {
 
       {/* Detail Slide Over */}
       {selectedTag && (
-        <div className="w-[600px] flex-shrink-0 bg-white shadow-2xl border-l border-slate-200 flex flex-col transition-all z-20 animate-in slide-in-from-right duration-300">
+        <div className="w-[20%] min-w-[300px] flex-shrink-0 bg-white shadow-2xl border-l border-slate-200 flex flex-col transition-all z-20 animate-in slide-in-from-right duration-300">
             <div className={`p-6 border-b border-slate-200 flex justify-between items-start ${isEditMode ? 'bg-blue-50' : 'bg-slate-50'}`}>
                 <div className="overflow-hidden">
                     <h2 className="text-lg font-bold font-mono text-slate-900 break-all leading-tight">
@@ -485,7 +494,7 @@ export const Registry: React.FC = () => {
                 <button onClick={() => { setSelectedTag(null); setIsEditMode(false); }} className="text-slate-400 hover:text-slate-700 ml-4 p-1 rounded hover:bg-slate-200"><X size={20}/></button>
             </div>
             
-            <div className="p-6 flex-1 overflow-y-auto space-y-8">
+            <div className="p-6 flex-1 overflow-y-auto space-y-4">
                 {/* Parent Info */}
                 <div>
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Родительский элемент</label>
@@ -511,6 +520,7 @@ export const Registry: React.FC = () => {
                         options={[
                             { value: 'active', label: 'Активен' },
                             { value: 'draft', label: 'Черновик' },
+                            { value: 'reserved', label: 'Занят' },
                             { value: 'review', label: 'На проверке' },
                             { value: 'approved', label: 'Утвержден' },
                             { value: 'archived', label: 'Архив' },
@@ -553,7 +563,7 @@ export const Registry: React.FC = () => {
 
                             return (
                                 <div key={key} className="flex justify-between items-center text-sm group">
-                                    <span className="text-slate-500 text-xs w-1/3">{label}</span>
+                                    <span className="text-slate-500 text-xs w-1/3 truncate" title={label}>{label}</span>
                                     {isEditMode ? (
                                         block.type === 'dictionary' ? (
                                             <select
@@ -580,7 +590,7 @@ export const Registry: React.FC = () => {
                                             />
                                         )
                                     ) : (
-                                        <span className="font-mono font-bold text-slate-800 border-b border-slate-200 border-dashed">{value}</span>
+                                        <span className="font-mono font-bold text-slate-800 border-b border-slate-200 border-dashed truncate max-w-[120px]" title={value}>{value}</span>
                                     )}
                                 </div>
                             );
@@ -588,36 +598,67 @@ export const Registry: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Notes Editor */}
-                <div>
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Заметки инженера</label>
-                    <textarea 
-                        className="w-full border border-slate-300 rounded-lg p-3 text-sm h-32 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none shadow-inner bg-slate-50 focus:bg-white transition-colors"
-                        placeholder="Опишите назначение, местоположение или особенности..."
-                        value={selectedTag.notes || ''}
-                        onChange={(e) => setSelectedTag({ ...selectedTag, notes: e.target.value })}
-                        onBlur={() => updateTag(selectedTag.id, { notes: selectedTag.notes })}
-                    />
-                </div>
-                
-                {/* History */}
-                 <div>
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-3">История изменений</label>
-                    <div className="space-y-0 relative pl-2">
-                        <div className="absolute left-2 top-2 bottom-2 w-0.5 bg-slate-100"></div>
-                        {selectedTag.history.map((log, idx) => (
-                            <div key={idx} className="relative pl-6 pb-4 last:pb-0">
-                                <div className="absolute left-0 top-1 w-4 h-4 bg-white border-2 border-blue-200 rounded-full z-10"></div>
-                                <div className="text-xs text-slate-800 font-bold">{log.action}</div>
-                                <div className="text-[10px] text-slate-500 mt-0.5 flex justify-between">
-                                    <span>{log.user}</span>
-                                    <span>{new Date(log.timestamp).toLocaleDateString()} {new Date(log.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                                </div>
-                                {log.details && <div className="text-[10px] text-slate-500 mt-1 bg-slate-50 p-2 rounded border border-slate-100 leading-relaxed">{log.details}</div>}
-                            </div>
-                        ))}
+                {/* TOGGLE BUTTON FOR NOTES */}
+                <button 
+                    onClick={() => setShowNotes(!showNotes)}
+                    className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors group"
+                >
+                    <div className="flex items-center gap-2 text-slate-600 font-medium text-sm">
+                        <FileText size={16} />
+                        <span>Описание</span>
                     </div>
-                 </div>
+                    {showNotes ? <ChevronUp size={16} className="text-slate-400"/> : <ChevronDown size={16} className="text-slate-400"/>}
+                </button>
+
+                {/* Collapsible Section: Notes */}
+                {showNotes && (
+                    <div className="space-y-4 animate-in slide-in-from-top-2 duration-200 pt-2">
+                        <div>
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Заметки инженера</label>
+                            <textarea 
+                                className="w-full border border-slate-300 rounded-lg p-3 text-sm h-32 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none shadow-inner bg-slate-50 focus:bg-white transition-colors"
+                                placeholder="Опишите назначение, местоположение или особенности..."
+                                value={selectedTag.notes || ''}
+                                onChange={(e) => setSelectedTag({ ...selectedTag, notes: e.target.value })}
+                                onBlur={() => updateTag(selectedTag.id, { notes: selectedTag.notes })}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {/* TOGGLE BUTTON FOR HISTORY */}
+                <button 
+                    onClick={() => setShowHistory(!showHistory)}
+                    className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors group"
+                >
+                    <div className="flex items-center gap-2 text-slate-600 font-medium text-sm">
+                        <Clock size={16} />
+                        <span>История изменений</span>
+                    </div>
+                    {showHistory ? <ChevronUp size={16} className="text-slate-400"/> : <ChevronDown size={16} className="text-slate-400"/>}
+                </button>
+
+                {/* Collapsible Section: History */}
+                {showHistory && (
+                    <div className="space-y-4 animate-in slide-in-from-top-2 duration-200 pt-2">
+                        <div>
+                            <div className="space-y-0 relative pl-2">
+                                <div className="absolute left-2 top-2 bottom-2 w-0.5 bg-slate-100"></div>
+                                {selectedTag.history.map((log, idx) => (
+                                    <div key={idx} className="relative pl-6 pb-4 last:pb-0">
+                                        <div className="absolute left-0 top-1 w-4 h-4 bg-white border-2 border-blue-200 rounded-full z-10"></div>
+                                        <div className="text-xs text-slate-800 font-bold">{log.action}</div>
+                                        <div className="text-[10px] text-slate-500 mt-0.5 flex justify-between">
+                                            <span>{log.user}</span>
+                                            <span>{new Date(log.timestamp).toLocaleDateString()} {new Date(log.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                        </div>
+                                        {log.details && <div className="text-[10px] text-slate-500 mt-1 bg-slate-50 p-2 rounded border border-slate-100 leading-relaxed">{log.details}</div>}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             <div className="p-4 border-t border-slate-200 bg-slate-50 grid grid-cols-2 gap-3">

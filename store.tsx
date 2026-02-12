@@ -10,9 +10,7 @@ const SEED_PROJECTS: Project[] = [
 ];
 
 const SEED_DICTIONARIES: DictionaryItem[] = [
-  { id: 'w1', projectId: DEFAULT_PROJECT_ID, category: 'WBS/Система', code: '210', value: 'Дегидрирование пропана', description: 'Propane Dehydrogenation' },
-  { id: 'w2', projectId: DEFAULT_PROJECT_ID, category: 'WBS/Система', code: '213', value: 'Фракционирование', description: 'Fractionation' },
-  { id: 'w3', projectId: DEFAULT_PROJECT_ID, category: 'WBS/Система', code: '320', value: 'Общезаводское хозяйство', description: 'Utilities' },
+  { id: 'w1', projectId: DEFAULT_PROJECT_ID, category: 'Проект', code: '210', value: 'Дегидрирование пропана', description: 'Propane Dehydrogenation' },
   { id: 'e1', projectId: DEFAULT_PROJECT_ID, category: 'Тип Оборудования', code: 'P', value: 'Насос', description: 'Centrifugal/Reciprocating Pump' },
   { id: 'e2', projectId: DEFAULT_PROJECT_ID, category: 'Тип Оборудования', code: 'V', value: 'Емкость/Сосуд', description: 'Vessel/Drum' },
   { id: 'v1', projectId: DEFAULT_PROJECT_ID, category: 'Тип Арматуры', code: 'HV', value: 'Ручной клапан', description: 'Hand Valve' },
@@ -30,12 +28,12 @@ const SEED_TEMPLATES: Template[] = [
     id: 't_mech',
     projectId: DEFAULT_PROJECT_ID,
     name: 'Механическое оборудование (P/V/E)',
-    description: 'PDH2 Структура: [Тип]-[WBS][Номер][Суффикс]. Пример: P-21301A',
+    description: 'PDH2 Структура: [Тип]-[Проект][Номер][Суффикс]. Пример: P-21301A',
     createdAt: new Date().toISOString(),
     blocks: [
       { id: 'b1', type: 'dictionary', categoryId: 'Тип Оборудования' },
       { id: 'b2', type: 'separator', value: '-' },
-      { id: 'b3', type: 'dictionary', categoryId: 'WBS/Система' },
+      { id: 'b3', type: 'dictionary', categoryId: 'Проект' },
       { id: 'b4', type: 'number', isAutoIncrement: true, padding: 2 }, 
       { id: 'b5', type: 'text', value: '', isSuffix: true }, 
     ],
@@ -44,7 +42,7 @@ const SEED_TEMPLATES: Template[] = [
     id: 't_motor_smart',
     projectId: DEFAULT_PROJECT_ID,
     name: 'Эл. двигатель (Умная привязка)',
-    description: 'Автоматически берет WBS и Номер от родителя (насоса). Пример: P-21301 -> M-21301',
+    description: 'Автоматически берет Код Проекта и Номер от родителя (насоса). Пример: P-21301 -> M-21301',
     createdAt: new Date().toISOString(),
     blocks: [
       { id: 'm1', type: 'global_var', variableKey: 'MOTOR_PREFIX' }, 
@@ -60,8 +58,8 @@ const SEED_TAGS: Tag[] = [
   {
     id: 'tag_demo_1',
     projectId: DEFAULT_PROJECT_ID,
-    fullTag: 'P-21301',
-    parts: { b1: 'P', b3: '213', b4: '01', b5: '' },
+    fullTag: 'P-21001',
+    parts: { b1: 'P', b3: '210', b4: '01', b5: '' },
     templateId: 't_mech',
     status: 'active',
     createdAt: new Date().toISOString(),
@@ -70,7 +68,7 @@ const SEED_TAGS: Tag[] = [
 ];
 
 const SEED_COUNTERS = {
-    [`${DEFAULT_PROJECT_ID}_P-213`]: 1
+    [`${DEFAULT_PROJECT_ID}_P-210`]: 1
 };
 
 // --- Context Definition ---
@@ -99,6 +97,7 @@ interface StoreContextType extends AppState {
   deleteTemplate: (id: string) => void;
   
   addDictionaryItem: (item: Omit<DictionaryItem, 'projectId'>) => void;
+  updateDictionaryItem: (id: string, updates: Partial<DictionaryItem>) => void;
   importDictionaryItems: (items: Omit<DictionaryItem, 'projectId'>[]) => void;
   deleteDictionaryItem: (id: string) => void;
   
@@ -270,6 +269,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const deleteTemplate = (id: string) => setState(p => ({ ...p, templates: p.templates.filter(t => t.id !== id) }));
 
   const addDictionaryItem = (item: Omit<DictionaryItem, 'projectId'>) => setState(p => ({ ...p, dictionaries: [...p.dictionaries, injectProject(item) as DictionaryItem] }));
+  const updateDictionaryItem = (id: string, updates: Partial<DictionaryItem>) => setState(p => ({ ...p, dictionaries: p.dictionaries.map(d => d.id === id ? { ...d, ...updates } : d) }));
   const importDictionaryItems = (items: Omit<DictionaryItem, 'projectId'>[]) => setState(p => ({ ...p, dictionaries: [...p.dictionaries, ...items.map(i => injectProject(i) as DictionaryItem)] }));
   const deleteDictionaryItem = (id: string) => setState(p => ({ ...p, dictionaries: p.dictionaries.filter(d => d.id !== id) }));
 
@@ -345,7 +345,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         
         addTag, addTags, updateTag, updateTagsStatus, deleteTag, deleteTags,
         addTemplate, deleteTemplate,
-        addDictionaryItem, importDictionaryItems, deleteDictionaryItem,
+        addDictionaryItem, updateDictionaryItem, importDictionaryItems, deleteDictionaryItem,
         addGlobalVariable, deleteGlobalVariable,
         addReservedRange, deleteReservedRange,
         getNextNumber, loadProjectData,

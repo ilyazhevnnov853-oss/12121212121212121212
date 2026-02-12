@@ -1,4 +1,5 @@
-export type TagStatus = 'draft' | 'active' | 'review' | 'approved' | 'archived';
+
+export type TagStatus = 'draft' | 'active' | 'review' | 'approved' | 'archived' | 'reserved';
 
 export type BlockType = 'text' | 'number' | 'separator' | 'dictionary' | 'parent' | 'placeholder' | 'global_var' | 'parent_ref';
 

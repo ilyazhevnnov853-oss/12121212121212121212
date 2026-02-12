@@ -18,6 +18,7 @@ export const Dashboard: React.FC = () => {
   const statusData = [
     { name: 'Черновик', value: statusCounts['draft'] || 0, color: '#94a3b8' },
     { name: 'Активен', value: statusCounts['active'] || 0, color: '#2563eb' },
+    { name: 'Занят', value: statusCounts['reserved'] || 0, color: '#ef4444' },
     { name: 'На проверке', value: statusCounts['review'] || 0, color: '#f59e0b' },
     { name: 'Утвержден', value: statusCounts['approved'] || 0, color: '#10b981' },
     { name: 'Архив', value: statusCounts['archived'] || 0, color: '#475569' },
