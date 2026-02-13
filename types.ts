@@ -6,9 +6,9 @@ export type BlockType = 'text' | 'number' | 'separator' | 'dictionary' | 'parent
 export interface User {
   id: string;
   name: string;
-  role: 'admin' | 'user' | string; // Updated type
+  role: 'admin' | 'user' | string; 
   email: string;
-  password?: string; // For mock auth
+  password?: string; 
 }
 
 export interface Project {
@@ -28,7 +28,7 @@ export interface AuditLog {
 
 export interface DictionaryItem {
   id: string;
-  projectId: string; // Linked to project
+  projectId: string; 
   category: string;
   subCategory?: string;
   code: string;
@@ -38,7 +38,7 @@ export interface DictionaryItem {
 
 export interface GlobalVariable {
   id: string;
-  projectId: string; // Linked to project
+  projectId: string; 
   key: string; 
   value: string; 
   description?: string;
@@ -48,7 +48,7 @@ export interface TemplateBlock {
   id: string;
   type: BlockType;
   value?: string; 
-  categoryId?: string; 
+  categoryId?: string; // In Global Mode, this is the "Abstract Name" (e.g., "Fluid Type")
   subCategoryId?: string; 
   isAutoIncrement?: boolean; 
   isSuffix?: boolean; 
@@ -60,7 +60,7 @@ export interface TemplateBlock {
 
 export interface Template {
   id: string;
-  projectId: string; // Linked to project
+  projectId: string; 
   name: string;
   description: string;
   blocks: TemplateBlock[];
@@ -69,7 +69,7 @@ export interface Template {
 
 export interface Tag {
   id: string;
-  projectId: string; // Linked to project
+  projectId: string; 
   fullTag: string;
   parts: { [blockId: string]: string }; 
   templateId: string;
@@ -82,12 +82,48 @@ export interface Tag {
 
 export interface ReservedRange {
   id: string;
-  projectId: string; // Linked to project
-  scope: string; // Prefix (e.g., "P", "V", "HV-101") to isolate counters
+  projectId: string; 
+  scope: string; 
   start: number;
   end: number;
   reason: string;
 }
+
+// --- LIBRARY TYPES (TEMPLATES) ---
+
+export type LibraryItemType = 'template' | 'assembly';
+
+export interface LibraryItem {
+  id: string;
+  type: LibraryItemType;
+  name: string;
+  description: string;
+  category: string; // e.g., "Mechanical", "Electrical"
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface LibraryTemplate extends LibraryItem {
+  type: 'template';
+  blocks: TemplateBlock[];
+}
+
+// --- LIBRARY TYPES (ASSEMBLIES) ---
+
+export interface AbstractComponent {
+  id: string;
+  name: string; // Role Name (e.g. "Supply Fan Motor")
+  defaultPrefix: string; // e.g. "M" or "TE"
+  description?: string;
+  children?: AbstractComponent[];
+}
+
+export interface AbstractAssembly extends LibraryItem {
+  type: 'assembly';
+  rootComponent: AbstractComponent;
+}
+
+// --- APP STATE ---
 
 export interface AppState {
   currentUser: User | null;
@@ -98,6 +134,9 @@ export interface AppState {
   dictionaries: DictionaryItem[];
   reservedRanges: ReservedRange[];
   globalVariables: GlobalVariable[];
-  // Key format: `${projectId}_${prefix}`
   counters: Record<string, number>;
+  
+  // New Global Library State
+  globalLibrary: LibraryTemplate[];
+  globalAssemblies: AbstractAssembly[];
 }

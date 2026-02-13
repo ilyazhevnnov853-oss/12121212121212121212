@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useStore } from '../store';
-import { LayoutDashboard, PenTool, Database, Tag as TagIcon, Settings, Menu, X, User as UserIcon, LogOut, FileUp, Download, Upload, HardDrive } from 'lucide-react';
+import { LayoutDashboard, PenTool, Database, Tag as TagIcon, Settings, Menu, X, User as UserIcon, LogOut, FileUp, Download, Upload, HardDrive, Library } from 'lucide-react';
 import { DictionaryItem } from '../types';
 
 interface LayoutProps {
@@ -22,6 +22,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange
   const csvInputRef = useRef<HTMLInputElement>(null);
   const backupInputRef = useRef<HTMLInputElement>(null);
 
+  const isAdmin = currentUser?.role === 'admin';
+
   const navItems = [
     { id: 'dashboard', label: 'Статистика проекта', icon: LayoutDashboard },
     { id: 'registry', label: 'Реестр тегов', icon: Database },
@@ -29,6 +31,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange
     { id: 'generator', label: 'Создание тега', icon: TagIcon },
     { id: 'dictionaries', label: 'Данные проекта', icon: Settings },
   ];
+
+  if (isAdmin) {
+      navItems.push({ id: 'admin_library', label: 'Системные стандарты', icon: Library });
+  }
 
   // --- Global Tools Handlers ---
   const handleBackup = () => {

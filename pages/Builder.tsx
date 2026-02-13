@@ -1,20 +1,26 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useStore } from '../store';
-import { Template, TemplateBlock } from '../types';
+import { Template, TemplateBlock, LibraryTemplate } from '../types';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { 
     Save, Plus, X, 
     Hash, Type, Trash2, ArrowLeft,
-    Variable, Link, Book, Play, ArrowRight
+    Variable, Link, Book, Play, ArrowRight, Globe
 } from 'lucide-react';
 
-export const Builder: React.FC = () => {
-  const { addTemplate, dictionaries, globalVariables } = useStore();
+interface BuilderProps {
+    mode?: 'project' | 'global';
+    onClose?: () => void; // For Admin mode when finished
+}
+
+export const Builder: React.FC<BuilderProps> = ({ mode = 'project', onClose }) => {
+  const { addTemplate, addGlobalTemplate, dictionaries, globalVariables, currentUser } = useStore();
   
   // Builder State
   const [templateName, setTemplateName] = useState('');
   const [templateDesc, setTemplateDesc] = useState('');
+  const [category, setCategory] = useState(''); // Only for Global
   const [blocks, setBlocks] = useState<TemplateBlock[]>([]);
   
   // UI State for Popovers
@@ -23,6 +29,7 @@ export const Builder: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const isGlobal = mode === 'global';
 
   // Close menu on outside click
   useEffect(() => {
@@ -89,17 +96,42 @@ export const Builder: React.FC = () => {
   // --- Structure Definition ---
 
   const mainCategories = [
-      { id: 'dict', label: 'Справочник', icon: Book, color: 'bg-blue-50 text-blue-700 border-blue-200' },
-      { id: 'smart', label: 'Умная привязка', icon: Link, color: 'bg-purple-50 text-purple-700 border-purple-200' },
+      { id: 'dict', label: isGlobal ? 'Абстрактный Справочник' : 'Справочник', icon: Book, color: 'bg-blue-50 text-blue-700 border-blue-200' },
       { id: 'format', label: 'Форматирование', icon: Type, color: 'bg-slate-50 text-slate-700 border-slate-200' },
       { id: 'auto', label: 'Нумерация', icon: Hash, color: 'bg-green-50 text-green-700 border-green-200' },
   ];
+
+  if (!isGlobal) {
+      mainCategories.splice(1, 0, { id: 'smart', label: 'Умная привязка', icon: Link, color: 'bg-purple-50 text-purple-700 border-purple-200' });
+  }
 
   const renderSubOptions = () => {
       const uniqueDictCats = Array.from(new Set(dictionaries.map(d => d.category))) as string[];
 
       switch (selectedCategory) {
           case 'dict':
+              if (isGlobal) {
+                  return (
+                      <div className="space-y-3 p-1">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Имя категории стандарта</p>
+                          <p className="text-xs text-slate-500 mb-2">Например: "Function Code", "Area", "Fluid Type". При импорте инженер сопоставит это с реальным справочником.</p>
+                          <div className="flex gap-2">
+                             <Input 
+                                id="abstract_cat_input"
+                                placeholder="Название..."
+                                className="text-xs h-9"
+                             />
+                             <Button 
+                                size="sm" 
+                                onClick={() => {
+                                    const val = (document.getElementById('abstract_cat_input') as HTMLInputElement).value;
+                                    if (val) applyConfiguration({ type: 'dictionary', categoryId: val, value: '' });
+                                }}
+                             >OK</Button>
+                          </div>
+                      </div>
+                  )
+              }
               return (
                   <div className="space-y-2">
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Выберите список значений</p>
@@ -216,23 +248,43 @@ export const Builder: React.FC = () => {
         alert("Пожалуйста, укажите название и добавьте блоки.");
         return;
     }
+    if (isGlobal && !category) {
+        alert("Для системного стандарта укажите категорию (дисциплину).");
+        return;
+    }
     if (blocks.some(b => b.type === 'placeholder')) {
         alert("Пожалуйста, настройте все пустые блоки или удалите их.");
         return;
     }
 
-    const newTemplate: Omit<Template, 'projectId'> = {
-        id: crypto.randomUUID(),
-        name: templateName,
-        description: templateDesc,
-        blocks,
-        createdAt: new Date().toISOString()
-    };
-    addTemplate(newTemplate);
+    if (isGlobal) {
+        const newLibTemplate: LibraryTemplate = {
+            id: crypto.randomUUID(),
+            type: 'template',
+            name: templateName,
+            description: templateDesc,
+            blocks,
+            category: category,
+            createdAt: new Date().toISOString(),
+            createdBy: currentUser?.name || 'Admin'
+        };
+        addGlobalTemplate(newLibTemplate);
+        if (onClose) onClose();
+    } else {
+        const newTemplate: Omit<Template, 'projectId'> = {
+            id: crypto.randomUUID(),
+            name: templateName,
+            description: templateDesc,
+            blocks,
+            createdAt: new Date().toISOString()
+        };
+        addTemplate(newTemplate);
+    }
+
     setTemplateName('');
     setTemplateDesc('');
     setBlocks([]);
-    alert("Шаблон сохранен!");
+    if (!isGlobal) alert("Шаблон сохранен!");
   };
 
   // Preview Logic
@@ -242,7 +294,7 @@ export const Builder: React.FC = () => {
         return b.value || 'FIX';
     }
     if (b.type === 'separator') return b.value;
-    if (b.type === 'dictionary') return `[${b.categoryId?.substring(0,6)}]`;
+    if (b.type === 'dictionary') return isGlobal ? `{${b.categoryId}}` : `[${b.categoryId?.substring(0,6)}]`;
     if (b.type === 'number') return '0'.repeat(b.padding || 3);
     if (b.type === 'parent') return '[PRNT]';
     if (b.type === 'global_var') return `{${b.variableKey}}`;
@@ -255,7 +307,19 @@ export const Builder: React.FC = () => {
     <div className="h-full flex flex-col space-y-6" ref={containerRef}>
        
        {/* Top Header */}
-       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col gap-6">
+       <div className={`p-6 rounded-xl shadow-sm border flex flex-col gap-6 ${isGlobal ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200'}`}>
+            {isGlobal && (
+                <div className="flex justify-between items-center -mt-2">
+                    <span className="flex items-center gap-2 text-indigo-700 font-bold text-sm uppercase tracking-wider">
+                        <Globe size={16}/> Редактор Системного Стандарта
+                    </span>
+                    {onClose && (
+                        <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+                            <X size={20} />
+                        </button>
+                    )}
+                </div>
+            )}
             
             {/* Preview Section - Full Width */}
             <div className="w-full">
@@ -269,8 +333,8 @@ export const Builder: React.FC = () => {
 
             {/* Inputs & Actions Section */}
             <div className="flex items-end gap-4">
-                <div className="w-1/3">
-                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Название шаблона</label>
+                <div className="w-1/4">
+                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Название стандарта</label>
                     <input 
                         value={templateName} 
                         onChange={e => setTemplateName(e.target.value)} 
@@ -278,6 +342,17 @@ export const Builder: React.FC = () => {
                         placeholder=""
                     />
                 </div>
+                {isGlobal && (
+                    <div className="w-1/6">
+                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Дисциплина</label>
+                        <input 
+                            value={category} 
+                            onChange={e => setCategory(e.target.value)} 
+                            className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all placeholder-transparent"
+                            placeholder="Напр. КИПиА"
+                        />
+                    </div>
+                )}
                 <div className="flex-1">
                     <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Описание</label>
                     <input 
@@ -289,7 +364,7 @@ export const Builder: React.FC = () => {
                 </div>
                 <button 
                     onClick={handleSave}
-                    className="h-[42px] w-[42px] bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center justify-center shadow-sm transition-colors flex-shrink-0"
+                    className={`h-[42px] w-[42px] text-white rounded-lg flex items-center justify-center shadow-sm transition-colors flex-shrink-0 ${isGlobal ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-blue-600 hover:bg-blue-700'}`}
                     title="Сохранить"
                 >
                     <Save size={20} />
@@ -298,9 +373,9 @@ export const Builder: React.FC = () => {
       </div>
 
       {/* Main Canvas Area */}
-      <div className="flex-1 bg-slate-50 rounded-xl border border-slate-200 relative overflow-hidden flex flex-col">
+      <div className={`flex-1 rounded-xl border relative overflow-hidden flex flex-col ${isGlobal ? 'bg-indigo-50/30 border-indigo-100' : 'bg-slate-50 border-slate-200'}`}>
         <div className="absolute top-4 left-4 text-xs font-bold text-slate-400 uppercase tracking-widest z-10 pointer-events-none">
-            Рабочая область
+            Рабочая область {isGlobal ? '(Системная)' : ''}
         </div>
 
         <div className="flex-1 overflow-x-auto flex items-center px-10">
@@ -310,10 +385,10 @@ export const Builder: React.FC = () => {
                 <div className="w-full flex justify-center">
                     <button 
                         onClick={() => addBlock(-1)}
-                        className="group flex flex-col items-center justify-center p-8 border-2 border-dashed border-slate-300 rounded-2xl hover:border-blue-500 hover:bg-blue-50/50 transition-all"
+                        className={`group flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-2xl transition-all ${isGlobal ? 'border-indigo-300 hover:border-indigo-500 hover:bg-indigo-50' : 'border-slate-300 hover:border-blue-500 hover:bg-blue-50/50'}`}
                     >
                         <div className="w-16 h-16 bg-white rounded-full shadow-sm flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                            <Play className="text-blue-500 ml-1" size={32} />
+                            <Play className={isGlobal ? 'text-indigo-500 ml-1' : 'text-blue-500 ml-1'} size={32} />
                         </div>
                         <h3 className="text-lg font-bold text-slate-700">Начать создание</h3>
                         <p className="text-sm text-slate-400">Нажмите, чтобы добавить первый блок</p>
@@ -356,7 +431,7 @@ export const Builder: React.FC = () => {
                                 {block.type === 'dictionary' && (
                                     <div className="text-center max-w-[140px]">
                                         <span className="block text-sm font-bold truncate text-blue-700">{block.categoryId}</span>
-                                        <span className="block text-[10px] uppercase text-slate-400 mt-1">Справочник</span>
+                                        <span className="block text-[10px] uppercase text-slate-400 mt-1">{isGlobal ? 'Абстракция' : 'Справочник'}</span>
                                     </div>
                                 )}
                                 {block.type === 'global_var' && (
@@ -386,7 +461,7 @@ export const Builder: React.FC = () => {
                             <div className="absolute top-0 bottom-0 -right-8 w-12 flex items-center justify-center z-0">
                                 <button
                                     onClick={() => addBlock(index)}
-                                    className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg transform scale-0 group-hover:scale-100 transition-all duration-200 hover:bg-blue-700 hover:rotate-90"
+                                    className={`w-8 h-8 rounded-full text-white flex items-center justify-center shadow-lg transform scale-0 group-hover:scale-100 transition-all duration-200 hover:rotate-90 ${isGlobal ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-blue-600 hover:bg-blue-700'}`}
                                     title="Вставить блок"
                                 >
                                     <Plus size={18} />

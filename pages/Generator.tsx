@@ -4,7 +4,9 @@ import { Template, Tag, TemplateBlock } from '../types';
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { Input } from '../components/ui/Input';
-import { Wand2, CheckCircle, QrCode, Layers, Link as LinkIcon, Info, FolderTree } from 'lucide-react';
+import { Wand2, CheckCircle, QrCode, Layers, Link as LinkIcon, Info, FolderTree, Globe, Package } from 'lucide-react';
+import { LibraryModal } from '../components/LibraryModal';
+import { AssemblyImportModal } from '../components/AssemblyImportModal';
 
 export const Generator: React.FC = () => {
   const { templates, dictionaries, tags, addTags, getNextNumber, globalVariables, currentProjectId } = useStore();
@@ -18,6 +20,9 @@ export const Generator: React.FC = () => {
   const [quantity, setQuantity] = useState<number>(1);
   const [lastGenerated, setLastGenerated] = useState<Tag[]>([]);
   const [generationMode, setGenerationMode] = useState<'sequence' | 'parallel'>('sequence');
+  
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+  const [isAssemblyModalOpen, setIsAssemblyModalOpen] = useState(false);
 
   const selectedTemplate = templates.find(t => t.id === selectedTemplateId);
 
@@ -210,9 +215,19 @@ export const Generator: React.FC = () => {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-full">
       <div className="space-y-6">
-        <div>
-            <h1 className="text-2xl font-bold text-slate-800">Создание тега</h1>
-            <p className="text-slate-500">Автоматическая генерация с наследованием данных.</p>
+        <div className="flex justify-between items-start">
+            <div>
+                <h1 className="text-2xl font-bold text-slate-800">Создание тега</h1>
+                <p className="text-slate-500">Автоматическая генерация с наследованием данных.</p>
+            </div>
+            <div className="flex gap-2">
+                <Button variant="secondary" onClick={() => setIsAssemblyModalOpen(true)} className="text-orange-600 bg-orange-50 border-orange-200 hover:bg-orange-100" icon={<Package size={18} />}>
+                    Импорт Сборки
+                </Button>
+                <Button variant="secondary" onClick={() => setIsLibraryOpen(true)} className="text-indigo-600 bg-indigo-50 border-indigo-200 hover:bg-indigo-100" icon={<Globe size={18} />}>
+                    Библиотека
+                </Button>
+            </div>
         </div>
 
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
@@ -281,7 +296,7 @@ export const Generator: React.FC = () => {
                         }
 
                         if (block.type === 'dictionary') {
-                            // Hide "Project" dictionary blocks as requested
+                             // Hide "Project" dictionary blocks as requested
                             if (block.categoryId === 'Проект' || block.categoryId === 'Project') {
                                 return null;
                             }
@@ -386,6 +401,9 @@ export const Generator: React.FC = () => {
             </div>
          )}
       </div>
+
+      {isLibraryOpen && <LibraryModal onClose={() => setIsLibraryOpen(false)} />}
+      {isAssemblyModalOpen && <AssemblyImportModal onClose={() => setIsAssemblyModalOpen(false)} />}
     </div>
   );
 };

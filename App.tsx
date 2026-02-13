@@ -8,6 +8,7 @@ import { Registry } from './pages/Registry';
 import { Dictionaries } from './pages/Dictionaries';
 import { Login } from './pages/Login';
 import { ProjectsDashboard } from './pages/ProjectsDashboard';
+import { AdminLibrary } from './pages/AdminLibrary';
 
 const AppContent: React.FC = () => {
   const { currentUser, currentProjectId } = useStore();
@@ -18,12 +19,18 @@ const AppContent: React.FC = () => {
       return <Login />;
   }
 
-  // 2. Logged In, No Project Selected
+  // 2. Admin Library Mode
+  // If currentProjectId is the special "ADMIN_LIB", show the Admin Library
+  if (currentProjectId === 'ADMIN_LIB') {
+      return <AdminLibrary />;
+  }
+
+  // 3. Logged In, No Project Selected
   if (!currentProjectId) {
       return <ProjectsDashboard />;
   }
 
-  // 3. Project Selected (Main App)
+  // 4. Project Selected (Main App)
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <Dashboard />;
@@ -31,6 +38,7 @@ const AppContent: React.FC = () => {
       case 'generator': return <Generator />;
       case 'registry': return <Registry />;
       case 'dictionaries': return <Dictionaries />;
+      // Note: AdminLibrary is now a top-level route (Step 2), accessible via ADMIN_LIB "project ID"
       default: return <Dashboard />;
     }
   };

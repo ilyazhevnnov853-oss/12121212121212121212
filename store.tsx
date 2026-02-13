@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
-import { AppState, Tag, Template, DictionaryItem, ReservedRange, TagStatus, User, GlobalVariable, Project } from './types';
+import { AppState, Tag, Template, DictionaryItem, ReservedRange, TagStatus, User, GlobalVariable, Project, LibraryTemplate, AbstractAssembly } from './types';
 
 // --- SEED DATA (Default Project) ---
 const DEFAULT_PROJECT_ID = 'proj_pdh2';
@@ -71,6 +71,73 @@ const SEED_COUNTERS = {
     [`${DEFAULT_PROJECT_ID}_P-210`]: 1
 };
 
+// --- GLOBAL LIBRARY MOCK ---
+const SEED_LIBRARY: LibraryTemplate[] = [
+    {
+        id: 'lib_t_isa_inst',
+        type: 'template',
+        name: 'ISA 5.1 Instrument Standard',
+        description: 'Standard loop tagging: [FunctionalID]-[LoopNum]',
+        category: 'Instrumentation',
+        createdAt: new Date().toISOString(),
+        createdBy: 'Admin',
+        blocks: [
+            { id: 'lb1', type: 'dictionary', categoryId: 'Function Code' }, // Abstract Category
+            { id: 'lb2', type: 'separator', value: '-' },
+            { id: 'lb3', type: 'number', isAutoIncrement: true, padding: 4 }
+        ]
+    }
+];
+
+const SEED_ASSEMBLIES: AbstractAssembly[] = [
+    {
+        id: 'asm_ahu',
+        type: 'assembly',
+        name: 'Air Handling Unit (AHU)',
+        description: 'Typical AHU with Supply/Return fans and coils',
+        category: 'HVAC',
+        createdAt: new Date().toISOString(),
+        createdBy: 'Admin',
+        rootComponent: {
+            id: 'root_ahu',
+            name: 'AHU Unit',
+            defaultPrefix: 'AHU',
+            children: [
+                {
+                    id: 'sf_motor',
+                    name: 'Supply Fan Motor',
+                    defaultPrefix: 'M',
+                    children: []
+                },
+                {
+                    id: 'rf_motor',
+                    name: 'Return Fan Motor',
+                    defaultPrefix: 'M',
+                    children: []
+                },
+                {
+                    id: 'hc_valve',
+                    name: 'Heating Coil Valve',
+                    defaultPrefix: 'TV',
+                    children: []
+                },
+                {
+                    id: 'cc_valve',
+                    name: 'Cooling Coil Valve',
+                    defaultPrefix: 'TV',
+                    children: []
+                },
+                {
+                    id: 'p_diff_switch',
+                    name: 'Filter Diff Pressure',
+                    defaultPrefix: 'PDS',
+                    children: []
+                }
+            ]
+        }
+    }
+];
+
 // --- Context Definition ---
 
 interface StoreContextType extends AppState {
@@ -109,6 +176,12 @@ interface StoreContextType extends AppState {
   
   getNextNumber: (prefix: string, padding: number) => number;
   loadProjectData: (data: AppState) => void;
+
+  // Library Actions
+  addGlobalTemplate: (item: LibraryTemplate) => void;
+  addGlobalAssembly: (item: AbstractAssembly) => void;
+  importLibraryTemplate: (templateId: string, categoryMappings: Record<string, string>) => void;
+  instantiateAssembly: (tagsToCreate: { fullTag: string, parentId?: string, description?: string }[]) => void;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -116,9 +189,12 @@ const StoreContext = createContext<StoreContextType | undefined>(undefined);
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // --- Global State ---
   const [state, setState] = useState<AppState>(() => {
-    const saved = localStorage.getItem('tagengine_db_v2');
+    const saved = localStorage.getItem('tagengine_db_v4'); // Version bumped
     if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (!parsed.globalLibrary) parsed.globalLibrary = SEED_LIBRARY;
+        if (!parsed.globalAssemblies) parsed.globalAssemblies = SEED_ASSEMBLIES;
+        return parsed;
     }
     return {
       currentUser: null,
@@ -129,15 +205,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       dictionaries: SEED_DICTIONARIES,
       reservedRanges: [],
       globalVariables: SEED_GLOBAL_VARS,
-      counters: SEED_COUNTERS
+      counters: SEED_COUNTERS,
+      globalLibrary: SEED_LIBRARY,
+      globalAssemblies: SEED_ASSEMBLIES
     };
   });
 
   // --- Persistence ---
-  
-  // DB Saver
   useEffect(() => {
-    localStorage.setItem('tagengine_db_v2', JSON.stringify(state));
+    localStorage.setItem('tagengine_db_v4', JSON.stringify(state));
   }, [state]);
 
   // Auth Checker (On Mount)
@@ -152,7 +228,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // --- Auth Actions ---
   const login = (userData: Partial<User>, rememberMe: boolean) => {
-      // Role Based Access Control Logic (Hardcoded for Task)
       let role = 'user';
       let name = userData.name || 'User';
 
@@ -163,7 +238,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           role = 'user';
           name = 'Engineer';
       } else {
-          // Fallback if name was passed directly
           role = userData.role || 'user';
       }
 
@@ -279,6 +353,60 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const addReservedRange = (range: Omit<ReservedRange, 'projectId'>) => setState(p => ({ ...p, reservedRanges: [...p.reservedRanges, injectProject(range) as ReservedRange] }));
   const deleteReservedRange = (id: string) => setState(p => ({ ...p, reservedRanges: p.reservedRanges.filter(r => r.id !== id) }));
 
+  // --- LIBRARY ACTIONS ---
+
+  const addGlobalTemplate = (item: LibraryTemplate) => {
+      setState(p => ({ ...p, globalLibrary: [...p.globalLibrary, item] }));
+  };
+
+  const addGlobalAssembly = (item: AbstractAssembly) => {
+      setState(p => ({ ...p, globalAssemblies: [...p.globalAssemblies, item] }));
+  };
+
+  const importLibraryTemplate = (templateId: string, categoryMappings: Record<string, string>) => {
+      if (!state.currentProjectId) return;
+      const libItem = state.globalLibrary.find(i => i.id === templateId);
+      if (!libItem) return;
+
+      const newBlocks = libItem.blocks.map(b => {
+          if (b.type === 'dictionary' && b.categoryId) {
+              const mappedCategory = categoryMappings[b.categoryId];
+              return { ...b, categoryId: mappedCategory || b.categoryId };
+          }
+          return b;
+      });
+
+      const newTemplate: Template = {
+          id: crypto.randomUUID(),
+          projectId: state.currentProjectId,
+          name: libItem.name,
+          description: libItem.description,
+          blocks: newBlocks,
+          createdAt: new Date().toISOString()
+      };
+
+      setState(p => ({ ...p, templates: [...p.templates, newTemplate] }));
+  };
+
+  const instantiateAssembly = (tagsToCreate: { fullTag: string, parentId?: string, description?: string }[]) => {
+      if (!state.currentProjectId) return;
+      
+      const newTags: Tag[] = tagsToCreate.map(item => ({
+          id: crypto.randomUUID(),
+          projectId: state.currentProjectId!,
+          fullTag: item.fullTag,
+          parts: {}, // Simplified parts for assembly generated tags for now
+          templateId: '', // Could link to a generic template if needed
+          status: 'draft',
+          parentId: item.parentId,
+          notes: item.description,
+          history: [{ action: 'Импорт Сборки', user: state.currentUser?.name || 'User', timestamp: new Date().toISOString() }],
+          createdAt: new Date().toISOString()
+      }));
+
+      setState(p => ({ ...p, tags: [...p.tags, ...newTags] }));
+  };
+
   const loadProjectData = (data: AppState) => {
       alert("Full DB Restore is disabled in Multi-Project Mode for safety.");
   };
@@ -293,8 +421,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (maxNum === 0) {
         const matchingTags = projectTags.filter((t) => t.fullTag.startsWith(prefix));
         matchingTags.forEach((t) => {
-            // Very basic heuristic: extract trailing numbers
-            // Improved regex to handle complex suffixes if needed, but keeping simple for now
             const suffix = t.fullTag.slice(prefix.length);
             const digits = suffix.match(/^(\d+)/);
             if (digits) {
@@ -307,25 +433,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     let next = maxNum + 1;
     
     // Scoped Reservation Logic
-    // Only check ranges that match the current generation prefix
     const relevantRanges = projectRanges.filter(r => r.scope === prefix);
 
     let isReserved = true;
     while (isReserved) {
-      // Find if 'next' falls into any reserved range for this scope
       const blockingRange = relevantRanges.find(r => next >= r.start && next <= r.end);
-      
       if (blockingRange) {
-          // If reserved, skip to the end of that range + 1
           next = blockingRange.end + 1;
       } else {
           isReserved = false;
       }
     }
     
-    // Note: Side effect in render/get is usually bad, but simplified for this architecture.
-    // In strict Redux/Flux, generation would be an Action that updates Store.
-    // Here we just update the in-memory counter for next call.
     state.counters[key] = next; 
     return next;
   };
@@ -349,6 +468,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         addGlobalVariable, deleteGlobalVariable,
         addReservedRange, deleteReservedRange,
         getNextNumber, loadProjectData,
+        
+        addGlobalTemplate, addGlobalAssembly, importLibraryTemplate, instantiateAssembly
       }}
     >
       {children}
