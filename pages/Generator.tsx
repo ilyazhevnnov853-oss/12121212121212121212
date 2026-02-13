@@ -42,6 +42,14 @@ export const Generator: React.FC = () => {
                   hasChanges = true;
               }
           }
+          // Auto-fill Project dictionary (single item logic)
+          if (block.type === 'dictionary' && (block.categoryId === 'Проект' || block.categoryId === 'Project')) {
+             const projectDict = dictionaries.find(d => d.category === block.categoryId);
+             if (projectDict && newFormData[block.id] !== projectDict.code) {
+                 newFormData[block.id] = projectDict.code;
+                 hasChanges = true;
+             }
+          }
       });
 
       // 2. Fill Parent References (if parent selected)
@@ -78,7 +86,7 @@ export const Generator: React.FC = () => {
       if (hasChanges) {
           setFormData(newFormData);
       }
-  }, [selectedTemplate, selectedParentId, globalVariables, tags, templates]);
+  }, [selectedTemplate, selectedParentId, globalVariables, tags, templates, dictionaries, formData]);
 
 
   const getDictOptions = (block: TemplateBlock) => {
@@ -273,6 +281,11 @@ export const Generator: React.FC = () => {
                         }
 
                         if (block.type === 'dictionary') {
+                            // Hide "Project" dictionary blocks as requested
+                            if (block.categoryId === 'Проект' || block.categoryId === 'Project') {
+                                return null;
+                            }
+
                             return (
                                 <Select 
                                     key={block.id}
