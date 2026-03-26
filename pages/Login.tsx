@@ -1,29 +1,23 @@
 import React, { useState } from 'react';
 import { useStore } from '../store';
 import { Button } from '../components/ui/Button';
-import { Tag, Lock, User, Activity } from 'lucide-react';
+import { Tag, Lock, User, Activity, AlertCircle } from 'lucide-react';
 
 export const Login: React.FC = () => {
-  const { login } = useStore();
-  const [username, setUsername] = useState('');
+  const { login, error, isLoading } = useStore();
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
+    if (!email) return;
     
-    // Fake authentication delay
-    setTimeout(() => {
-        login({
-            id: 'u1',
-            name: username || 'User',
-            role: 'Senior Engineer',
-            email: 'engineer@pdh2.project'
-        }, rememberMe);
-        setIsLoading(false);
-    }, 800);
+    try {
+        await login({ email, password }, rememberMe);
+    } catch (err) {
+        // Ошибка уже обрабатывается в store и записывается в state.error
+    }
   };
 
   return (
@@ -45,13 +39,21 @@ export const Login: React.FC = () => {
 
             <div className="bg-white/5 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-8 shadow-2xl">
                 <form onSubmit={handleLogin} className="space-y-6">
+                    {error && (
+                        <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded-lg flex items-center gap-2 text-sm">
+                            <AlertCircle size={16} />
+                            {error}
+                        </div>
+                    )}
+                    
                     <div className="space-y-4">
                         <div className="relative group">
                             <User className="absolute left-3 top-3 text-slate-500 group-focus-within:text-blue-400 transition-colors" size={18} />
                             <input 
-                                type="text" 
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
+                                type="email" 
+                                placeholder="Email (например, admin@test.com)"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
                                 className="w-full bg-slate-900/50 border border-slate-600 text-white rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder-slate-500"
                             />
                         </div>
@@ -59,6 +61,7 @@ export const Login: React.FC = () => {
                             <Lock className="absolute left-3 top-3 text-slate-500 group-focus-within:text-blue-400 transition-colors" size={18} />
                             <input 
                                 type="password" 
+                                placeholder="Пароль"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 className="w-full bg-slate-900/50 border border-slate-600 text-white rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder-slate-500"

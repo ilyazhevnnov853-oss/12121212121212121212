@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { AppState, Tag, Template, DictionaryItem, ReservedRange, TagStatus, User, Project } from './types';
+import { api } from './api';
+import { toast } from 'sonner';
 
 // --- SEED DATA (Default Project) ---
 const DEFAULT_PROJECT_ID = 'proj_pdh2';
@@ -47,7 +49,7 @@ const SEED_TAGS: Tag[] = [
   }
 ];
 
-const SEED_COUNTERS = {
+const SEED_COUNTERS: Record<string, number> = {
     [`${DEFAULT_PROJECT_ID}_P-210`]: 1
 };
 
@@ -55,11 +57,12 @@ const SEED_COUNTERS = {
 
 interface StoreContextType extends AppState {
   // Auth
-  login: (user: Partial<User>, rememberMe: boolean) => void;
+  login: (credentials: { email: string; password?: string }, rememberMe: boolean) => Promise<void>;
   logout: () => void;
   
   // Project Management
   setCurrentProject: (id: string | null) => void;
+  fetchProjectData: (projectId: string) => Promise<void>;
   addProject: (project: Project) => void;
   updateProject: (id: string, updates: Partial<Project>) => void;
   deleteProject: (id: string) => void;
@@ -96,7 +99,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const saved = localStorage.getItem('tagengine_db_v4'); // Version bumped
     if (saved) {
         const parsed = JSON.parse(saved);
-        return parsed;
+        return { ...parsed, isLoading: false, error: null };
     }
     return {
       currentUser: null,
@@ -107,6 +110,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       dictionaries: SEED_DICTIONARIES,
       reservedRanges: [],
       counters: SEED_COUNTERS,
+      isLoading: false,
+      error: null,
     };
   });
 
@@ -126,42 +131,77 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   // --- Auth Actions ---
-  const login = (userData: Partial<User>, rememberMe: boolean) => {
-      let role = 'user';
-      let name = userData.name || 'User';
+  const login = async (credentials: { email: string; password?: string }, rememberMe: boolean) => {
+      setState(prev => ({ ...prev, isLoading: true, error: null }));
+      try {
+          // Временно используем мок-логику, пока бэкенд не запущен
+          // const response = await api.post('/auth/login', credentials);
+          // const { token, user } = response.data;
+          
+          // Мок-логика для тестирования UI без запущенного бэкенда
+          let role = 'user';
+          let name = 'User';
+          if (credentials.email === 'admin@test.com') { role = 'admin'; name = 'Administrator'; }
+          else if (credentials.email === 'manager@test.com') { role = 'manager'; name = 'Project Manager'; }
+          else if (credentials.email === 'hvac@test.com') { role = 'hvac_engineer'; name = 'HVAC Engineer'; }
+          else if (credentials.email === 'auto@test.com') { role = 'automation_engineer'; name = 'Automation Engineer'; }
+          else { throw new Error('Неверный логин или пароль'); }
 
-      if (userData.name === '1') {
-          role = 'admin';
-          name = 'Administrator';
-      } else if (userData.name === '2') {
-          role = 'user';
-          name = 'Engineer';
-      } else {
-          role = userData.role || 'user';
+          const user = { id: 'u_' + Math.random(), name, email: credentials.email, role };
+          const token = 'mock-jwt-token';
+
+          const userStr = JSON.stringify(user);
+          if (rememberMe) {
+              localStorage.setItem('te_auth_user', userStr);
+              localStorage.setItem('te_jwt_token', token);
+          } else {
+              sessionStorage.setItem('te_auth_user', userStr);
+              sessionStorage.setItem('te_jwt_token', token);
+          }
+          
+          setState(prev => ({ ...prev, currentUser: user, currentProjectId: null, isLoading: false }));
+          toast.success('Успешный вход');
+      } catch (error: any) {
+          setState(prev => ({ ...prev, isLoading: false, error: error.response?.data?.message || error.message || 'Ошибка авторизации' }));
+          toast.error('Ошибка авторизации');
+          throw error;
       }
-
-      const fullUser: User = {
-          id: userData.id || 'u_' + Math.random(),
-          name: name,
-          email: userData.email || 'user@example.com',
-          role: role
-      };
-
-      const userStr = JSON.stringify(fullUser);
-      if (rememberMe) localStorage.setItem('te_auth_user', userStr);
-      else sessionStorage.setItem('te_auth_user', userStr);
-      
-      setState(prev => ({ ...prev, currentUser: fullUser, currentProjectId: null }));
   };
 
   const logout = () => {
       localStorage.removeItem('te_auth_user');
+      localStorage.removeItem('te_jwt_token');
       sessionStorage.removeItem('te_auth_user');
+      sessionStorage.removeItem('te_jwt_token');
       setState(prev => ({ ...prev, currentUser: null, currentProjectId: null }));
   };
 
   // --- Project Actions ---
-  const setCurrentProject = (id: string | null) => setState(p => ({ ...p, currentProjectId: id }));
+  const setCurrentProject = (id: string | null) => {
+      setState(p => ({ ...p, currentProjectId: id }));
+      if (id) {
+          fetchProjectData(id);
+      }
+  };
+
+  const fetchProjectData = async (projectId: string) => {
+      setState(prev => ({ ...prev, isLoading: true, error: null }));
+      try {
+          // Здесь будет реальный запрос:
+          // const [tagsRes, templatesRes, dictsRes] = await Promise.all([
+          //     api.get(`/projects/${projectId}/tags`),
+          //     api.get(`/projects/${projectId}/templates`),
+          //     api.get(`/projects/${projectId}/dictionaries`)
+          // ]);
+          // setState(prev => ({ ...prev, tags: tagsRes.data, templates: templatesRes.data, dictionaries: dictsRes.data, isLoading: false }));
+          
+          // Пока используем локальные данные
+          setState(prev => ({ ...prev, isLoading: false }));
+      } catch (error: any) {
+          setState(prev => ({ ...prev, isLoading: false, error: 'Ошибка загрузки данных проекта' }));
+          toast.error('Не удалось загрузить данные проекта');
+      }
+  };
   
   const addProject = (project: Project) => setState(p => ({ ...p, projects: [...p.projects, project] }));
   

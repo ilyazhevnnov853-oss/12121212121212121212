@@ -26,10 +26,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange
   const navItems = [
     { id: 'dashboard', label: 'Статистика проекта', icon: LayoutDashboard },
     { id: 'registry', label: 'Реестр тегов', icon: Database },
-    { id: 'builder', label: 'Конструктор шаблонов', icon: PenTool },
+    { id: 'builder', label: 'Конструктор шаблонов', icon: PenTool, roles: ['admin', 'hvac_engineer'] },
     { id: 'generator', label: 'Создание тега', icon: TagIcon },
-    { id: 'dictionaries', label: 'Данные проекта', icon: Settings },
+    { id: 'dictionaries', label: 'Данные проекта', icon: Settings, roles: ['admin', 'hvac_engineer'] },
   ];
+
+  const filteredNavItems = navItems.filter(item => 
+    !item.roles || (currentUser && item.roles.includes(currentUser.role))
+  );
 
   // --- Global Tools Handlers ---
   const handleBackup = () => {
@@ -102,7 +106,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange
           <span className="text-xl font-bold tracking-tight">TagEngine</span>
         </div>
         <nav className="flex-1 p-4 space-y-1">
-          {navItems.map((item) => (
+          {filteredNavItems.map((item) => (
             <button
               key={item.id}
               onClick={() => onTabChange(item.id)}
@@ -200,7 +204,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange
           {/* Mobile Menu Overlay */}
           {isMobileMenuOpen && (
             <div className="md:hidden fixed inset-0 bg-slate-900 z-40 pt-20 px-4 space-y-2">
-              {navItems.map((item) => (
+              {filteredNavItems.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => {

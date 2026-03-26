@@ -90,4 +90,6 @@ export interface AppState {
   dictionaries: DictionaryItem[];
   reservedRanges: ReservedRange[];
   counters: Record<string, number>;
+  isLoading: boolean;
+  error: string | null;
 }

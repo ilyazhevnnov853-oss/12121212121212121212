@@ -8,7 +8,7 @@ import { Wand2, CheckCircle, QrCode, Layers, FolderTree } from 'lucide-react';
 import { toast } from 'sonner';
 
 export const Generator: React.FC = () => {
-  const { templates, dictionaries, tags, addTags, getNextNumber, currentProjectId } = useStore();
+  const { templates, dictionaries, tags, addTags, getNextNumber, currentProjectId, currentUser } = useStore();
   
   // Selection State
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
@@ -19,6 +19,17 @@ export const Generator: React.FC = () => {
   const [lastGenerated, setLastGenerated] = useState<Tag[]>([]);
   const [generationMode, setGenerationMode] = useState<'sequence' | 'parallel'>('sequence');
   
+  const filteredTemplates = useMemo(() => {
+      if (!currentUser) return templates;
+      if (currentUser.role === 'hvac_engineer') {
+          return templates.filter(t => t.name.toLowerCase().includes('ов') || t.name.toLowerCase().includes('вентиляция'));
+      }
+      if (currentUser.role === 'automation_engineer') {
+          return templates.filter(t => t.name.toLowerCase().includes('ак') || t.name.toLowerCase().includes('автоматика'));
+      }
+      return templates;
+  }, [templates, currentUser]);
+
   const selectedTemplate = templates.find(t => t.id === selectedTemplateId);
 
   // --- Logic: Auto-fill fields based on Parent and Global Vars ---
@@ -203,7 +214,7 @@ export const Generator: React.FC = () => {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
             <Select 
                 label="Выберите шаблон"
-                options={templates.map(t => ({ value: t.id, label: t.name }))}
+                options={filteredTemplates.map(t => ({ value: t.id, label: t.name }))}
                 value={selectedTemplateId}
                 onChange={e => { setSelectedTemplateId(e.target.value); setFormData({}); setQuantity(1); setHierarchyParentId(''); }}
             />

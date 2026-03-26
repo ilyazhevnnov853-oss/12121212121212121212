@@ -27,6 +27,29 @@ export const Registry: React.FC = () => {
       getNextNumber 
   } = useStore();
 
+  const isManager = currentUser?.role === 'manager';
+
+  const canEditTag = (tag: Tag) => {
+      if (!currentUser) return false;
+      if (currentUser.role === 'admin') return true;
+      if (currentUser.role === 'manager') return false;
+      
+      const template = templates.find(t => t.id === tag.templateId);
+      if (!template) return false;
+      
+      const name = template.name.toLowerCase();
+      
+      if (currentUser.role === 'hvac_engineer') {
+          return name.includes('ов') || name.includes('вентиляция') || name.includes('механика');
+      }
+      
+      if (currentUser.role === 'automation_engineer') {
+          return name.includes('ак') || name.includes('автоматика');
+      }
+      
+      return false;
+  };
+
   // --- UI State ---
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTemplate, setFilterTemplate] = useState('all');
@@ -283,17 +306,19 @@ export const Registry: React.FC = () => {
             >
                 {/* Checkbox */}
                 <td className="px-3 py-2 w-10 text-center" onClick={(e) => e.stopPropagation()}>
-                    <button 
-                        onClick={() => {
-                            const newSet = new Set(selectedIds);
-                            if (newSet.has(tag.id)) newSet.delete(tag.id);
-                            else newSet.add(tag.id);
-                            setSelectedIds(newSet);
-                        }} 
-                        className={`transition-colors ${isChecked ? "text-blue-600" : "text-slate-300 hover:text-slate-500"}`}
-                    >
-                        {isChecked ? <CheckSquare size={16}/> : <Square size={16} />}
-                    </button>
+                    {canEditTag(tag) && (
+                        <button 
+                            onClick={() => {
+                                const newSet = new Set(selectedIds);
+                                if (newSet.has(tag.id)) newSet.delete(tag.id);
+                                else newSet.add(tag.id);
+                                setSelectedIds(newSet);
+                            }} 
+                            className={`transition-colors ${isChecked ? "text-blue-600" : "text-slate-300 hover:text-slate-500"}`}
+                        >
+                            {isChecked ? <CheckSquare size={16}/> : <Square size={16} />}
+                        </button>
+                    )}
                 </td>
 
                 {/* Tree Column */}
@@ -371,8 +396,12 @@ export const Registry: React.FC = () => {
                 <td className="px-4 py-2 text-right w-10">
                     <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={(e) => { e.stopPropagation(); handleCopy(tag.fullTag); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Копировать"><Copy size={14}/></button>
-                        <button onClick={(e) => { e.stopPropagation(); handleEditClick(tag); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Редактировать"><PenLine size={14}/></button>
-                        <button onClick={(e) => { e.stopPropagation(); handleDelete(tag.id); }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="Удалить"><Trash2 size={14}/></button>
+                        {canEditTag(tag) && (
+                            <>
+                                <button onClick={(e) => { e.stopPropagation(); handleEditClick(tag); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Редактировать"><PenLine size={14}/></button>
+                                <button onClick={(e) => { e.stopPropagation(); handleDelete(tag.id); }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="Удалить"><Trash2 size={14}/></button>
+                            </>
+                        )}
                     </div>
                 </td>
             </tr>
@@ -473,9 +502,18 @@ export const Registry: React.FC = () => {
                 <thead className="bg-white sticky top-0 z-10 shadow-sm">
                     <tr>
                         <th className="px-3 py-3 w-10 text-center border-b border-slate-200">
-                            <button onClick={() => setSelectedIds(new Set())} className="text-slate-400 hover:text-blue-600">
-                                <Square size={16} />
-                            </button>
+                            {!isManager && (
+                                <button onClick={() => {
+                                    if (selectedIds.size > 0) {
+                                        setSelectedIds(new Set());
+                                    } else {
+                                        const editableIds = paginatedItems.filter(canEditTag).map(t => t.id);
+                                        setSelectedIds(new Set(editableIds));
+                                    }
+                                }} className="text-slate-400 hover:text-blue-600">
+                                    {selectedIds.size > 0 ? <CheckSquare size={16} className="text-blue-600" /> : <Square size={16} />}
+                                </button>
+                            )}
                         </th>
                         <th className="px-2 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                             {viewMode === 'tree' && !isSearchActive ? 'Иерархия тегов' : 'Наименование'}
@@ -574,6 +612,7 @@ export const Registry: React.FC = () => {
                         className="h-9 text-sm"
                         options={Object.entries(STATUS_MAP).map(([k, v]) => ({ value: k, label: v }))}
                         value={selectedTag.status}
+                        disabled={!canEditTag(selectedTag)}
                         onChange={(e) => {
                              const newStatus = e.target.value as TagStatus;
                              if (selectedTag.status !== newStatus) {
@@ -657,6 +696,7 @@ export const Registry: React.FC = () => {
                             value={selectedTag.notes || ''}
                             onChange={(e) => setSelectedTag({ ...selectedTag, notes: e.target.value })}
                             onBlur={() => updateTag(selectedTag.id, { notes: selectedTag.notes })}
+                            disabled={!canEditTag(selectedTag)}
                         />
                     )}
                 </div>
@@ -685,19 +725,21 @@ export const Registry: React.FC = () => {
             </div>
 
             {/* Footer Actions */}
-            <div className="p-4 border-t border-slate-200 bg-slate-50 flex gap-2">
-                {isEditMode ? (
-                    <>
-                        <Button className="flex-1" onClick={handleSaveEdit} icon={<Save size={16}/>}>Сохранить</Button>
-                        <Button className="flex-1" variant="secondary" onClick={() => setIsEditMode(false)}>Отмена</Button>
-                    </>
-                ) : (
-                    <>
-                        <Button className="flex-1" variant="secondary" onClick={() => handleEditClick(selectedTag)} icon={<PenLine size={16}/>}>Правка</Button>
-                        <Button variant="danger" onClick={() => handleDelete(selectedTag.id)}><Trash2 size={16}/></Button>
-                    </>
-                )}
-            </div>
+            {canEditTag(selectedTag) && (
+                <div className="p-4 border-t border-slate-200 bg-slate-50 flex gap-2">
+                    {isEditMode ? (
+                        <>
+                            <Button className="flex-1" onClick={handleSaveEdit} icon={<Save size={16}/>}>Сохранить</Button>
+                            <Button className="flex-1" variant="secondary" onClick={() => setIsEditMode(false)}>Отмена</Button>
+                        </>
+                    ) : (
+                        <>
+                            <Button className="flex-1" variant="secondary" onClick={() => handleEditClick(selectedTag)} icon={<PenLine size={16}/>}>Правка</Button>
+                            <Button variant="danger" onClick={() => handleDelete(selectedTag.id)}><Trash2 size={16}/></Button>
+                        </>
+                    )}
+                </div>
+            )}
         </div>
       )}
     </div>

@@ -1,0 +1,131 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(uuid())
+  name      String
+  role      String    @default("user")
+  email     String    @unique
+  password  String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  projects  Project[] @relation("ProjectCreator")
+  lockedFiles FileItem[] @relation("FileLocker")
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  
+  createdById String
+  createdBy   User     @relation("ProjectCreator", fields: [createdById], references: [id])
+
+  tags           Tag[]
+  templates      Template[]
+  dictionaries   DictionaryItem[]
+  reservedRanges ReservedRange[]
+  counters       Counter[]
+  files          FileItem[]
+}
+
+model DictionaryItem {
+  id          String  @id @default(uuid())
+  projectId   String
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  category    String
+  subCategory String?
+  code        String
+  value       String
+  description String?
+}
+
+model Template {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  name        String
+  description String
+  blocks      Json     // Храним TemplateBlock[] как JSONB
+  createdAt   DateTime @default(now())
+  
+  tags        Tag[]
+}
+
+model Tag {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  fullTag     String
+  parts       Json     // Храним Record<string, string> как JSONB
+  
+  templateId  String
+  template    Template @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  
+  status      String   @default("draft") // draft, active, review, approved, archived, reserved
+  
+  parentId    String?
+  parent      Tag?     @relation("TagHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Tag[]    @relation("TagHierarchy")
+  
+  notes       String?
+  history     Json     // Храним AuditLog[] как JSONB
+  createdAt   DateTime @default(now())
+  
+  files       FileItem[] @relation("TagFiles")
+}
+
+model ReservedRange {
+  id        String  @id @default(uuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  scope     String
+  start     Int
+  end       Int
+  reason    String
+}
+
+// Таблица для хранения счетчиков (замена counters из localStorage)
+model Counter {
+  id        String  @id @default(uuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  prefix    String
+  value     Int     @default(0)
+
+  @@unique([projectId, prefix])
+}
+
+model FileItem {
+  id           String   @id @default(uuid())
+  filename     String
+  originalName String
+  mimeType     String
+  size         Int
+  path         String
+  status       String   @default("available") // available, locked
+  
+  lockedById   String?
+  lockedBy     User?    @relation("FileLocker", fields: [lockedById], references: [id])
+  
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  tags         Tag[]    @relation("TagFiles")
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
