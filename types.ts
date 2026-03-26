@@ -1,7 +1,7 @@
 
 export type TagStatus = 'draft' | 'active' | 'review' | 'approved' | 'archived' | 'reserved';
 
-export type BlockType = 'text' | 'number' | 'separator' | 'dictionary' | 'parent' | 'placeholder' | 'global_var' | 'parent_ref';
+export type BlockType = 'text' | 'number' | 'separator' | 'dictionary' | 'parent' | 'placeholder';
 
 export interface User {
   id: string;
@@ -36,14 +36,6 @@ export interface DictionaryItem {
   description?: string;
 }
 
-export interface GlobalVariable {
-  id: string;
-  projectId: string; 
-  key: string; 
-  value: string; 
-  description?: string;
-}
-
 export interface TemplateBlock {
   id: string;
   type: BlockType;
@@ -54,8 +46,6 @@ export interface TemplateBlock {
   isSuffix?: boolean; 
   padding?: number; 
   separator?: string; 
-  variableKey?: string; 
-  parentSource?: 'number' | 'wbs' | 'full_tag'; 
 }
 
 export interface Template {
@@ -89,40 +79,6 @@ export interface ReservedRange {
   reason: string;
 }
 
-// --- LIBRARY TYPES (TEMPLATES) ---
-
-export type LibraryItemType = 'template' | 'assembly';
-
-export interface LibraryItem {
-  id: string;
-  type: LibraryItemType;
-  name: string;
-  description: string;
-  category: string; // e.g., "Mechanical", "Electrical"
-  createdAt: string;
-  createdBy: string;
-}
-
-export interface LibraryTemplate extends LibraryItem {
-  type: 'template';
-  blocks: TemplateBlock[];
-}
-
-// --- LIBRARY TYPES (ASSEMBLIES) ---
-
-export interface AbstractComponent {
-  id: string;
-  name: string; // Role Name (e.g. "Supply Fan Motor")
-  defaultPrefix: string; // e.g. "M" or "TE"
-  description?: string;
-  children?: AbstractComponent[];
-}
-
-export interface AbstractAssembly extends LibraryItem {
-  type: 'assembly';
-  rootComponent: AbstractComponent;
-}
-
 // --- APP STATE ---
 
 export interface AppState {
@@ -133,10 +89,5 @@ export interface AppState {
   templates: Template[];
   dictionaries: DictionaryItem[];
   reservedRanges: ReservedRange[];
-  globalVariables: GlobalVariable[];
   counters: Record<string, number>;
-  
-  // New Global Library State
-  globalLibrary: LibraryTemplate[];
-  globalAssemblies: AbstractAssembly[];
 }

@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { useStore } from '../store';
-import { LayoutDashboard, PenTool, Database, Tag as TagIcon, Settings, Menu, X, User as UserIcon, LogOut, FileUp, Download, Upload, HardDrive, Library } from 'lucide-react';
+import { LayoutDashboard, PenTool, Database, Tag as TagIcon, Settings, Menu, X, User as UserIcon, LogOut, FileUp, Download, Upload, HardDrive } from 'lucide-react';
 import { DictionaryItem } from '../types';
+import { toast } from 'sonner';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -12,7 +13,7 @@ interface LayoutProps {
 export const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange }) => {
   const { 
       currentUser, logout,
-      tags, templates, dictionaries, globalVariables, counters,
+      tags, templates, dictionaries, counters,
       loadProjectData, importDictionaryItems 
   } = useStore();
   
@@ -22,8 +23,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange
   const csvInputRef = useRef<HTMLInputElement>(null);
   const backupInputRef = useRef<HTMLInputElement>(null);
 
-  const isAdmin = currentUser?.role === 'admin';
-
   const navItems = [
     { id: 'dashboard', label: 'Статистика проекта', icon: LayoutDashboard },
     { id: 'registry', label: 'Реестр тегов', icon: Database },
@@ -32,13 +31,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange
     { id: 'dictionaries', label: 'Данные проекта', icon: Settings },
   ];
 
-  if (isAdmin) {
-      navItems.push({ id: 'admin_library', label: 'Системные стандарты', icon: Library });
-  }
-
   // --- Global Tools Handlers ---
   const handleBackup = () => {
-      const data = { tags, templates, dictionaries, globalVariables, counters };
+      const data = { tags, templates, dictionaries, counters };
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -46,6 +41,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange
       link.download = `TagEngine_Backup_${new Date().toISOString().slice(0,10)}.json`;
       link.click();
       URL.revokeObjectURL(url);
+      toast.success("Бэкап успешно скачан");
   };
 
   const handleRestore = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -57,9 +53,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange
               const data = JSON.parse(event.target?.result as string);
               if (data.tags && data.templates) {
                   loadProjectData(data);
-                  alert("База данных успешно восстановлена.");
-              } else alert("Неверный формат файла бэкапа.");
-          } catch (err) { alert("Ошибка чтения файла."); }
+                  toast.success("База данных успешно восстановлена.");
+              } else toast.error("Неверный формат файла бэкапа.");
+          } catch (err) { toast.error("Ошибка чтения файла."); }
       };
       reader.readAsText(file);
       e.target.value = '';
@@ -88,7 +84,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange
           });
           if (newItems.length > 0) {
               importDictionaryItems(newItems);
-              alert(`Импортировано ${newItems.length} записей.`);
+              toast.success(`Импортировано ${newItems.length} записей.`);
+          } else {
+              toast.info("Новых записей не найдено.");
           }
       };
       reader.readAsText(file);
@@ -220,9 +218,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange
             </div>
           )}
 
-          {/* Scrollable Main Content */}
-          <main className="flex-1 overflow-auto md:p-8 p-4 bg-slate-50">
-            <div className="max-w-7xl mx-auto h-full">
+          {/* Main Content */}
+          <main className="flex-1 overflow-hidden bg-slate-50 p-4 md:p-6">
+            <div className="w-full h-full">
                 {children}
             </div>
           </main>

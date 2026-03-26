@@ -5,6 +5,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Folder, Plus, LogOut, Info, Tag, ArrowRight, Copy, ShieldAlert, Trash2, Save, Globe } from 'lucide-react';
+import { toast } from 'sonner';
 
 export const ProjectsDashboard: React.FC = () => {
     const { projects, currentUser, setCurrentProject, addProject, updateProject, deleteProject, logout, importProjectConfig } = useStore();
@@ -42,16 +43,17 @@ export const ProjectsDashboard: React.FC = () => {
         setNewProjName('');
         setNewProjDesc('');
         setCreateModalOpen(false);
+        toast.success("Проект успешно создан");
     };
 
     const handleImport = () => {
         if (!sourceImportId || !targetImportId) return;
         if (sourceImportId === targetImportId) {
-            alert("Нельзя импортировать из проекта в тот же самый проект.");
+            toast.error("Нельзя импортировать из проекта в тот же самый проект.");
             return;
         }
         importProjectConfig(sourceImportId, targetImportId, importOpts);
-        alert("Конфигурация успешно скопирована!");
+        toast.success("Конфигурация успешно скопирована!");
         setImportModalOpen(false);
     };
 
@@ -76,27 +78,6 @@ export const ProjectsDashboard: React.FC = () => {
         }
     };
 
-    // Special Route Trigger
-    const goToAdminLibrary = () => {
-        // We use a hacky way to switch routing context without a router lib in this simple demo
-        // Ideally we would use react-router.
-        // For now, we rely on App.tsx checking `currentProjectId` which is null here.
-        // We need a way to signal App.tsx to show Admin Library.
-        // Since we are adding "admin_library" to the App tab state, we can use a temporary project ID or similar mechanism.
-        // BUT, App.tsx logic is: if (!currentProjectId) show ProjectsDashboard.
-        // So we need to modify App.tsx to handle a specific "admin-mode" state or route.
-        // 
-        // SIMPLIFICATION: We will dispatch a custom event or use a window global, 
-        // OR better: we add a `viewMode` to the Store or App state.
-        // 
-        // ACTUALLY: Let's assume the App.tsx has been updated to handle a 'ADMIN_LIBRARY' pseudo-project-id 
-        // or we simply render the AdminLibrary component here conditionally if a state is set.
-        
-        // Let's modify the Store to allow 'ADMIN_LIB' as a currentProjectId 
-        // and handle it in App.tsx
-        setCurrentProject('ADMIN_LIB');
-    };
-
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col">
             
@@ -107,17 +88,12 @@ export const ProjectsDashboard: React.FC = () => {
                     <h1 className="text-2xl font-bold text-slate-800 tracking-tight">TagEngine</h1>
                 </div>
                 <div className="flex items-center gap-4">
-                    {isAdmin && (
-                        <Button onClick={goToAdminLibrary} className="bg-indigo-600 hover:bg-indigo-700" icon={<Globe size={16}/>}>
-                            Системная Библиотека
-                        </Button>
-                    )}
                     <Button variant="ghost" size="sm" onClick={logout} icon={<LogOut size={16}/>}>Выйти</Button>
                 </div>
             </header>
 
             {/* Content */}
-            <div className="flex-1 p-8 max-w-7xl mx-auto w-full">
+            <div className="flex-1 p-8 w-full">
                 
                 <div className="flex justify-between items-end mb-6">
                     <div>

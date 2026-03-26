@@ -5,9 +5,11 @@ import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { 
     Search, Filter, Trash2, X, Copy, Download, 
-    CheckSquare, Square, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ChevronRight as ChevronIcon,
-    FileInput, CheckCircle, AlertCircle, PenLine, Save, RotateCcw, FolderTree, List, Clock, FileText
+    CheckSquare, Square, ChevronLeft, ChevronRight, ChevronDown, ChevronRight as ChevronIcon,
+    CheckCircle, AlertCircle, PenLine, Save, RotateCcw, FolderTree, List, Clock, FileText,
+    Folder, FolderOpen, Tag as TagIcon, MoreHorizontal
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const STATUS_MAP: Record<string, string> = {
     'active': 'Активен',
@@ -39,22 +41,16 @@ export const Registry: React.FC = () => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editFormData, setEditFormData] = useState<Record<string, string>>({}); 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [notification, setNotification] = useState<{msg: string, type: 'success' | 'error'} | null>(null);
 
   // Visibility toggle for History and Notes
   const [showNotes, setShowNotes] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
   // Constants
-  const ITEMS_PER_PAGE = 20;
+  const ITEMS_PER_PAGE = 50; // Increased for better tree viewing
   const [page, setPage] = useState(1);
 
   // --- Actions ---
-
-  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
-      setNotification({ msg, type });
-      setTimeout(() => setNotification(null), 3000);
-  };
 
   const toggleExpand = (id: string, e: React.MouseEvent) => {
       e.stopPropagation();
@@ -66,7 +62,7 @@ export const Registry: React.FC = () => {
 
   const handleCopy = (text: string) => {
       navigator.clipboard.writeText(text);
-      showToast('Скопировано в буфер!');
+      toast.success('Скопировано в буфер!');
   };
 
   const handleDelete = (id: string) => {
@@ -76,7 +72,7 @@ export const Registry: React.FC = () => {
             setSelectedTag(null);
             setIsEditMode(false);
         }
-        showToast('Тег удален');
+        toast.success('Тег удален');
     }
   };
 
@@ -85,14 +81,14 @@ export const Registry: React.FC = () => {
           deleteTags(Array.from(selectedIds));
           setSelectedIds(new Set());
           setSelectedTag(null);
-          showToast(`Удалено ${selectedIds.size} тегов`);
+          toast.success(`Удалено ${selectedIds.size} тегов`);
       }
   };
 
   const handleBulkStatusChange = (status: TagStatus) => {
       updateTagsStatus(Array.from(selectedIds), status);
       setSelectedIds(new Set());
-      showToast('Статусы обновлены');
+      toast.success('Статусы обновлены');
   };
 
   const handleEditClick = (tag: Tag) => {
@@ -145,13 +141,13 @@ export const Registry: React.FC = () => {
       updateTag(selectedTag.id, updatedTag);
       setSelectedTag(updatedTag);
       setIsEditMode(false);
-      showToast('Изменения сохранены');
+      toast.success('Изменения сохранены');
   };
 
     const handleClone = (original: Tag) => {
       const template = templates.find(t => t.id === original.templateId);
       if (!template) {
-          showToast('Ошибка: Шаблон исходного тега не найден', 'error');
+          toast.error('Ошибка: Шаблон исходного тега не найден');
           return;
       }
 
@@ -194,7 +190,7 @@ export const Registry: React.FC = () => {
       };
 
       addTag(newTag);
-      showToast(`Создан клон: ${newFullTag}`);
+      toast.success(`Создан клон: ${newFullTag}`);
   };
 
   const handleExportCSV = () => {
@@ -238,36 +234,55 @@ export const Registry: React.FC = () => {
   const { roots, childrenMap } = useMemo(() => {
       const roots: Tag[] = [];
       const childrenMap: Record<string, Tag[]> = {};
+      
+      const displayTagIds = new Set(displayTags.map(t => t.id));
 
       displayTags.forEach(tag => {
-          if (!tag.parentId || !tags.find(p => p.id === tag.parentId)) {
-              if (!tag.parentId) roots.push(tag);
-              else {
-                   if (!childrenMap[tag.parentId]) childrenMap[tag.parentId] = [];
-                   childrenMap[tag.parentId].push(tag);
-              }
+          // If no parent, or parent doesn't exist in the current display list of tags, treat as root
+          if (!tag.parentId || !displayTagIds.has(tag.parentId)) {
+              roots.push(tag);
+          } else {
+              // Otherwise, add to parent's children list
+              if (!childrenMap[tag.parentId]) childrenMap[tag.parentId] = [];
+              childrenMap[tag.parentId].push(tag);
           }
       });
       
-      roots.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      // Sort: Folders (parents) first, then files
+      const sorter = (a: Tag, b: Tag) => {
+           const aHasChildren = !!childrenMap[a.id]?.length;
+           const bHasChildren = !!childrenMap[b.id]?.length;
+           if (aHasChildren && !bHasChildren) return -1;
+           if (!aHasChildren && bHasChildren) return 1;
+           return a.fullTag.localeCompare(b.fullTag);
+      };
+
+      roots.sort(sorter);
+      Object.values(childrenMap).forEach(list => list.sort(sorter));
       
       return { roots, childrenMap };
   }, [displayTags, tags]);
 
   // --- Helper: Render Row ---
-  const renderRow = (tag: Tag, level: number = 0) => {
+  const renderRow = (tag: Tag, level: number = 0, isLastChild: boolean = false) => {
       const hasChildren = !!childrenMap[tag.id]?.length;
       const isExpanded = expandedIds.has(tag.id);
       const isSelected = selectedTag?.id === tag.id;
       const isChecked = selectedIds.has(tag.id);
 
+      const templateName = templates.find(t => t.id === tag.templateId)?.name;
+
       return (
           <React.Fragment key={tag.id}>
             <tr 
                 onClick={() => { setSelectedTag(tag); setIsEditMode(false); setShowNotes(false); setShowHistory(false); }}
-                className={`group cursor-pointer hover:bg-slate-50 transition-colors border-l-4 ${isSelected ? 'bg-blue-50/50 border-l-blue-500' : 'border-l-transparent'}`}
+                className={`
+                    group cursor-pointer transition-all border-b border-slate-50 hover:bg-blue-50/30
+                    ${isSelected ? 'bg-blue-50 ring-1 ring-inset ring-blue-200' : ''}
+                `}
             >
-                <td className="px-4 py-3 text-center w-12 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                {/* Checkbox */}
+                <td className="px-3 py-2 w-10 text-center" onClick={(e) => e.stopPropagation()}>
                     <button 
                         onClick={() => {
                             const newSet = new Set(selectedIds);
@@ -275,42 +290,74 @@ export const Registry: React.FC = () => {
                             else newSet.add(tag.id);
                             setSelectedIds(newSet);
                         }} 
-                        className={isChecked ? "text-blue-600" : "text-slate-300 hover:text-slate-500"}
+                        className={`transition-colors ${isChecked ? "text-blue-600" : "text-slate-300 hover:text-slate-500"}`}
                     >
-                        {isChecked ? <CheckSquare size={18}/> : <Square size={18} />}
+                        {isChecked ? <CheckSquare size={16}/> : <Square size={16} />}
                     </button>
                 </td>
-                <td className="px-6 py-3 whitespace-nowrap">
-                    <div className="flex items-center" style={{ paddingLeft: `${level * 24}px` }}>
-                        {/* Tree Expander */}
-                        {hasChildren && !isSearchActive ? (
-                            <button 
-                                onClick={(e) => toggleExpand(tag.id, e)}
-                                className="mr-2 p-1 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-200 transition-colors"
-                            >
-                                {isExpanded ? <ChevronDown size={16} /> : <ChevronIcon size={16} />}
-                            </button>
-                        ) : (
-                            <span className="w-6 mr-2"></span> // Spacer
-                        )}
+
+                {/* Tree Column */}
+                <td className="px-2 py-2 whitespace-nowrap">
+                    <div className="flex items-center h-full" style={{ paddingLeft: `${level * 24}px` }}>
                         
+                        {/* Tree Lines (Visual Aid) */}
+                        {level > 0 && (
+                            <div className="w-4 h-full border-l border-slate-200 absolute left-0" style={{ marginLeft: `${(level * 24) - 12}px` }}></div>
+                        )}
+
+                        {/* Expander Button */}
+                        <div className="w-6 h-6 flex items-center justify-center mr-1 shrink-0 relative z-10">
+                            {hasChildren && viewMode === 'tree' && !isSearchActive ? (
+                                <button 
+                                    onClick={(e) => toggleExpand(tag.id, e)}
+                                    className={`
+                                        p-0.5 rounded hover:bg-slate-200 transition-all
+                                        ${isExpanded ? 'text-slate-700 transform rotate-90' : 'text-slate-400'}
+                                    `}
+                                >
+                                    <ChevronRight size={14} strokeWidth={3} />
+                                </button>
+                            ) : (
+                                <span className="w-4"></span>
+                            )}
+                        </div>
+
+                        {/* Icon */}
+                        <div className={`mr-3 shrink-0 ${hasChildren ? 'text-indigo-500' : 'text-slate-400'}`}>
+                            {hasChildren ? (
+                                isExpanded ? <FolderOpen size={18} fill="currentColor" fillOpacity={0.1} /> : <Folder size={18} fill="currentColor" fillOpacity={0.1} />
+                            ) : (
+                                <TagIcon size={16} />
+                            )}
+                        </div>
+
+                        {/* Tag Name */}
                         <div className="flex flex-col">
-                            <div className="flex items-center space-x-3">
-                                <span className={`font-mono font-bold text-base ${isSelected ? 'text-blue-700' : 'text-slate-800'}`}>
-                                    {tag.fullTag}
-                                </span>
-                                {hasChildren && <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">{childrenMap[tag.id].length}</span>}
-                            </div>
-                            <div className="text-[10px] text-slate-400 font-mono mt-0.5">ID: {tag.id.slice(0,6)}</div>
+                            <span className={`font-mono font-bold text-sm ${isSelected ? 'text-blue-700' : 'text-slate-700'} ${hasChildren ? 'text-base' : ''}`}>
+                                {tag.fullTag}
+                            </span>
+                            {/* Mobile/Compact view sub-info */}
+                            <span className="text-[10px] text-slate-400 lg:hidden">{templateName}</span>
                         </div>
                     </div>
                 </td>
-                <td className="px-6 py-3 text-slate-600 whitespace-nowrap">
-                    {templates.find(t => t.id === tag.templateId)?.name || <span className="text-red-400 italic">Шаблон удален</span>}
+
+                {/* Template (Hidden on small screens) */}
+                <td className="px-4 py-2 text-xs text-slate-500 hidden lg:table-cell whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">
+                    {templateName}
                 </td>
-                <td className="px-6 py-3 whitespace-nowrap">
-                    <span className={`px-2.5 py-0.5 inline-flex text-xs font-bold uppercase tracking-wide rounded-full border ${
-                        tag.status === 'active' ? 'bg-green-100 text-green-700 border-green-200' :
+
+                {/* Parent (Only in List Mode) */}
+                {viewMode === 'list' && (
+                    <td className="px-4 py-2 text-xs text-slate-400 font-mono hidden md:table-cell">
+                        {tag.parentId ? tags.find(t => t.id === tag.parentId)?.fullTag || '...' : '-'}
+                    </td>
+                )}
+
+                {/* Status */}
+                <td className="px-4 py-2 whitespace-nowrap">
+                    <span className={`px-2 py-0.5 inline-flex text-[10px] font-bold uppercase tracking-wide rounded-full border ${
+                        tag.status === 'active' ? 'bg-green-50 text-green-700 border-green-200' :
                         tag.status === 'draft' ? 'bg-slate-100 text-slate-600 border-slate-200' :
                         tag.status === 'approved' ? 'bg-blue-50 text-blue-700 border-blue-200' :
                         tag.status === 'reserved' ? 'bg-red-50 text-red-700 border-red-200' :
@@ -319,18 +366,20 @@ export const Registry: React.FC = () => {
                         {STATUS_MAP[tag.status] || tag.status}
                     </span>
                 </td>
-                <td className="px-6 py-3 text-right whitespace-nowrap">
-                    <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={(e) => { e.stopPropagation(); handleCopy(tag.fullTag); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Copy size={16}/></button>
-                        <button onClick={(e) => { e.stopPropagation(); handleEditClick(tag); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded"><PenLine size={16}/></button>
-                        <button onClick={(e) => { e.stopPropagation(); handleClone(tag); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Copy size={16}/></button>
-                        <button onClick={(e) => { e.stopPropagation(); handleDelete(tag.id); }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={16}/></button>
+
+                {/* Actions */}
+                <td className="px-4 py-2 text-right w-10">
+                    <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={(e) => { e.stopPropagation(); handleCopy(tag.fullTag); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Копировать"><Copy size={14}/></button>
+                        <button onClick={(e) => { e.stopPropagation(); handleEditClick(tag); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Редактировать"><PenLine size={14}/></button>
+                        <button onClick={(e) => { e.stopPropagation(); handleDelete(tag.id); }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="Удалить"><Trash2 size={14}/></button>
                     </div>
                 </td>
             </tr>
-            {/* Recursive Render Children */}
-            {isExpanded && !isSearchActive && hasChildren && (
-                childrenMap[tag.id].map(child => renderRow(child, level + 1))
+            
+            {/* Recursive Children Render */}
+            {isExpanded && viewMode === 'tree' && !isSearchActive && hasChildren && (
+                childrenMap[tag.id].map((child, idx, arr) => renderRow(child, level + 1, idx === arr.length - 1))
             )}
           </React.Fragment>
       );
@@ -338,91 +387,77 @@ export const Registry: React.FC = () => {
 
   // --- Main Render ---
 
-  const tagsToRender = isSearchActive || viewMode === 'list' 
-      ? displayTags 
-      : roots;
-
+  const tagsToRender = isSearchActive || viewMode === 'list' ? displayTags : roots;
   const totalItems = tagsToRender.length;
-  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+  // In tree mode, pagination applies to roots. In list mode, to all items.
   const paginatedItems = tagsToRender.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
 
   return (
-    <div className="flex h-full gap-4 relative">
+    <div className="flex h-full gap-4 relative overflow-hidden">
       
-      {/* Toast */}
-      {notification && (
-          <div className={`fixed bottom-6 right-6 px-6 py-3 rounded-lg shadow-xl flex items-center gap-3 z-50 animate-in slide-in-from-bottom-5 ${notification.type === 'success' ? 'bg-slate-800 text-green-400' : 'bg-red-600 text-white'}`}>
-              {notification.type === 'success' ? <CheckCircle size={20}/> : <AlertCircle size={20}/>}
-              <span className="font-medium text-sm">{notification.msg}</span>
-          </div>
-      )}
-
       {/* Main Panel */}
-      <div className={`flex flex-col h-full bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden transition-all duration-300 min-w-0 ${selectedTag ? 'flex-[4]' : 'flex-1'}`}>
+      <div className={`flex flex-col h-full bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden transition-all duration-300 min-w-0 ${selectedTag ? 'flex-[3]' : 'flex-1'}`}>
          
          {/* Toolbar */}
-         <div className="p-4 border-b border-slate-200 space-y-4 bg-slate-50/50">
-             <div className="flex flex-col xl:flex-row gap-4 justify-between">
-                <div className="relative flex-1 min-w-[300px]">
-                    <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
+         <div className="p-3 border-b border-slate-200 bg-white z-20 flex-shrink-0">
+             <div className="flex flex-col xl:flex-row gap-3 justify-between items-center">
+                <div className="relative flex-1 w-full xl:w-auto">
+                    <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
                     <input 
                         type="text" 
-                        placeholder="Поиск по тегу..." 
-                        className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Поиск тегов..." 
+                        className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
                         value={searchTerm}
                         onChange={e => { setSearchTerm(e.target.value); setPage(1); }}
                     />
                 </div>
-                <div className="flex gap-2 flex-wrap">
-                    <div className="flex bg-slate-200 rounded-lg p-1 mr-2">
+                
+                <div className="flex gap-2 w-full xl:w-auto justify-end">
+                    {/* View Toggles */}
+                    <div className="flex bg-slate-100 rounded-lg p-1 border border-slate-200">
                         <button 
                             onClick={() => setViewMode('tree')} 
-                            className={`p-1.5 rounded-md transition-all ${viewMode === 'tree' && !isSearchActive ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
-                            title="Дерево"
+                            className={`px-2 py-1 rounded transition-all flex items-center gap-1 text-xs font-bold ${viewMode === 'tree' && !isSearchActive ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-800'}`}
                             disabled={isSearchActive}
                         >
-                            <FolderTree size={16}/>
+                            <FolderTree size={14}/> Дерево
                         </button>
                         <button 
                             onClick={() => setViewMode('list')} 
-                            className={`p-1.5 rounded-md transition-all ${viewMode === 'list' || isSearchActive ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
-                            title="Список"
+                            className={`px-2 py-1 rounded transition-all flex items-center gap-1 text-xs font-bold ${viewMode === 'list' || isSearchActive ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-800'}`}
                         >
-                            <List size={16}/>
+                            <List size={14}/> Список
                         </button>
                     </div>
 
-                    <div className="w-48">
+                    <div className="w-40">
                         <Select 
+                            className="h-[34px] py-1 text-xs"
                             options={[{ value: 'all', label: 'Все шаблоны' }, ...templates.map(t => ({ value: t.id, label: t.name }))]}
                             value={filterTemplate}
                             onChange={e => { setFilterTemplate(e.target.value); setPage(1); }}
                         />
                     </div>
-                    <div className="w-40">
-                        <Select 
-                            options={[
-                                { value: 'all', label: 'Все статусы' },
-                                { value: 'active', label: 'Активен' },
-                                { value: 'draft', label: 'Черновик' },
-                                { value: 'reserved', label: 'Занят' },
-                                { value: 'review', label: 'На проверке' },
-                                { value: 'approved', label: 'Утвержден' },
-                                { value: 'archived', label: 'Архив' },
-                            ]}
-                            value={filterStatus}
-                            onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
-                        />
-                    </div>
-                    <Button variant="secondary" icon={<Download size={16} />} onClick={handleExportCSV}>CSV</Button>
+
+                    <Button 
+                        variant="secondary" 
+                        size="sm" 
+                        onClick={handleExportCSV}
+                        icon={<Download size={14} />}
+                        className="h-[34px]"
+                    >
+                        Экспорт CSV
+                    </Button>
                 </div>
              </div>
              
+             {/* Bulk Actions Bar */}
              {selectedIds.size > 0 && (
-                 <div className="bg-blue-50 border border-blue-100 p-2 rounded-lg flex items-center justify-between">
+                 <div className="mt-3 bg-blue-50 border border-blue-100 p-2 rounded-lg flex items-center justify-between animate-in slide-in-from-top-2 fade-in">
                      <div className="flex items-center gap-2 px-2">
-                        <CheckSquare className="text-blue-600" size={18} />
-                        <span className="text-sm font-bold text-blue-900">Выбрано: {selectedIds.size}</span>
+                        <CheckSquare className="text-blue-600" size={16} />
+                        <span className="text-xs font-bold text-blue-900 uppercase tracking-wide">Выбрано: {selectedIds.size}</span>
                      </div>
                      <div className="flex gap-2">
                          <Button size="sm" variant="secondary" onClick={() => handleBulkStatusChange('approved')}>Утвердить</Button>
@@ -432,30 +467,34 @@ export const Registry: React.FC = () => {
              )}
          </div>
 
-         {/* Content Table */}
-         <div className="flex-1 overflow-auto relative custom-scrollbar">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-                <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm text-slate-500 font-semibold uppercase tracking-wider">
+         {/* Content Table Container - Full Height Scrollable */}
+         <div className="flex-1 overflow-auto bg-slate-50/30 custom-scrollbar relative">
+            <table className="min-w-full text-left border-collapse">
+                <thead className="bg-white sticky top-0 z-10 shadow-sm">
                     <tr>
-                        <th className="px-4 py-3 w-12 text-center">
+                        <th className="px-3 py-3 w-10 text-center border-b border-slate-200">
                             <button onClick={() => setSelectedIds(new Set())} className="text-slate-400 hover:text-blue-600">
-                                <Square size={18} />
+                                <Square size={16} />
                             </button>
                         </th>
-                        <th className="px-6 py-3 text-left whitespace-nowrap">
-                            {viewMode === 'tree' && !isSearchActive ? 'Иерархия тегов' : 'Список тегов'}
+                        <th className="px-2 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                            {viewMode === 'tree' && !isSearchActive ? 'Иерархия тегов' : 'Наименование'}
                         </th>
-                        <th className="px-6 py-3 text-left whitespace-nowrap">НАИМЕНОВАНИЕ</th>
-                        <th className="px-6 py-3 text-left whitespace-nowrap">Статус</th>
-                        <th className="px-6 py-3 text-right whitespace-nowrap">Действия</th>
+                        <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200 hidden lg:table-cell">Шаблон</th>
+                        {viewMode === 'list' && <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200 hidden md:table-cell">Родитель</th>}
+                        <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">Статус</th>
+                        <th className="px-4 py-3 text-right border-b border-slate-200 w-10"></th>
                     </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-slate-100">
+                <tbody className="bg-white">
                     {paginatedItems.length === 0 ? (
                         <tr>
-                            <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
-                                <Filter size={48} className="mx-auto mb-4 opacity-20"/>
-                                <p>Теги не найдены.</p>
+                            <td colSpan={6} className="px-6 py-20 text-center text-slate-400">
+                                <div className="flex flex-col items-center">
+                                    <Filter size={48} className="mb-4 opacity-20"/>
+                                    <p className="font-medium">Теги не найдены</p>
+                                    <p className="text-xs mt-1">Попробуйте изменить фильтры или создать новый тег</p>
+                                </div>
                             </td>
                         </tr>
                     ) : (
@@ -465,212 +504,197 @@ export const Registry: React.FC = () => {
             </table>
          </div>
 
-         {/* Pagination */}
-         <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end">
-             <div className="flex gap-2">
-                 <Button variant="secondary" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>
+         {/* Pagination Footer */}
+         <div className="p-3 border-t border-slate-200 bg-white flex items-center justify-between flex-shrink-0">
+             <div className="text-xs text-slate-400">
+                 Всего: <span className="font-bold text-slate-700">{totalItems}</span>
+             </div>
+             <div className="flex gap-1 items-center">
+                 <button 
+                    disabled={page === 1} onClick={() => setPage(p => p - 1)}
+                    className="p-1.5 rounded hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                 >
                      <ChevronLeft size={16}/>
-                 </Button>
-                 <span className="flex items-center px-2 text-sm font-medium text-slate-700 whitespace-nowrap">
-                     Стр. {page} из {Math.max(1, totalPages)}
+                 </button>
+                 <span className="text-xs font-mono px-2 text-slate-600">
+                     {page} / {Math.max(1, totalPages)}
                  </span>
-                 <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
+                 <button 
+                    disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}
+                    className="p-1.5 rounded hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                 >
                      <ChevronRight size={16}/>
-                 </Button>
+                 </button>
              </div>
          </div>
       </div>
 
       {/* Detail Slide Over */}
       {selectedTag && (
-        <div className="w-[20%] min-w-[300px] flex-shrink-0 bg-white shadow-2xl border-l border-slate-200 flex flex-col transition-all z-20 animate-in slide-in-from-right duration-300">
-            <div className={`p-6 border-b border-slate-200 flex justify-between items-start ${isEditMode ? 'bg-blue-50' : 'bg-slate-50'}`}>
-                <div className="overflow-hidden">
+        <div className="w-[350px] flex-shrink-0 bg-white shadow-2xl border-l border-slate-200 flex flex-col transition-all z-30 animate-in slide-in-from-right duration-300">
+            {/* Header */}
+            <div className={`p-5 border-b border-slate-200 flex justify-between items-start ${isEditMode ? 'bg-indigo-50' : 'bg-white'}`}>
+                <div>
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
+                        {isEditMode ? <PenLine size={12}/> : <TagIcon size={12}/>}
+                        {isEditMode ? 'Редактирование' : 'Свойства'}
+                    </div>
                     <h2 className="text-lg font-bold font-mono text-slate-900 break-all leading-tight">
-                        {isEditMode ? 'Редактирование' : selectedTag.fullTag}
+                        {selectedTag.fullTag}
                     </h2>
-                    <p className="text-xs text-slate-400 mt-1 font-mono">{selectedTag.id}</p>
                 </div>
-                <button onClick={() => { setSelectedTag(null); setIsEditMode(false); }} className="text-slate-400 hover:text-slate-700 ml-4 p-1 rounded hover:bg-slate-200"><X size={20}/></button>
+                <button onClick={() => { setSelectedTag(null); setIsEditMode(false); }} className="text-slate-400 hover:text-slate-700 p-1 rounded hover:bg-slate-100"><X size={20}/></button>
             </div>
             
-            <div className="p-6 flex-1 overflow-y-auto space-y-4">
-                {/* Parent Info */}
-                <div>
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Родительский элемент</label>
-                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center">
-                         {selectedTag.parentId ? (
-                             <div className="flex items-center gap-2">
-                                 <FolderTree size={16} className="text-blue-500" />
-                                 <span className="font-mono font-bold text-slate-700">
-                                     {tags.find(t => t.id === selectedTag.parentId)?.fullTag || 'Не найден'}
-                                 </span>
-                                 <span className="text-xs text-slate-400 ml-2">ID: {selectedTag.parentId.slice(0,6)}</span>
-                             </div>
-                         ) : (
-                             <span className="text-sm text-slate-400 italic">Нет родителя (Корневой тег)</span>
-                         )}
+            <div className="p-5 flex-1 overflow-y-auto space-y-6">
+                
+                {/* Parent Block */}
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                        <FolderTree size={12}/> Родительский узел
                     </div>
+                    {selectedTag.parentId ? (
+                        <div className="flex items-center gap-2">
+                             <div className="p-1.5 bg-white rounded border border-slate-200 text-indigo-500"><Folder size={14}/></div>
+                             <div>
+                                 <div className="font-mono font-bold text-sm text-slate-700 leading-none">
+                                     {tags.find(t => t.id === selectedTag.parentId)?.fullTag || 'Не найден'}
+                                 </div>
+                             </div>
+                        </div>
+                    ) : (
+                        <div className="text-xs text-slate-400 italic pl-1">Это корневой элемент</div>
+                    )}
                 </div>
 
-                {/* Status Section */}
+                {/* Status Selector */}
                 <div>
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Текущий статус</label>
+                    <label className="text-xs font-bold text-slate-700 mb-1.5 block">Статус</label>
                     <Select 
-                        options={[
-                            { value: 'active', label: 'Активен' },
-                            { value: 'draft', label: 'Черновик' },
-                            { value: 'reserved', label: 'Занят' },
-                            { value: 'review', label: 'На проверке' },
-                            { value: 'approved', label: 'Утвержден' },
-                            { value: 'archived', label: 'Архив' },
-                        ]}
+                        className="h-9 text-sm"
+                        options={Object.entries(STATUS_MAP).map(([k, v]) => ({ value: k, label: v }))}
                         value={selectedTag.status}
                         onChange={(e) => {
                              const newStatus = e.target.value as TagStatus;
                              if (selectedTag.status !== newStatus) {
                                  const logEntry: any = {
-                                     action: 'Изменение статуса',
+                                     action: 'Статус изменен',
                                      user: currentUser?.name || 'Unknown',
                                      timestamp: new Date().toISOString(),
-                                     details: `Статус: ${selectedTag.status} -> ${newStatus}`
+                                     details: `${selectedTag.status} -> ${newStatus}`
                                  };
                                  updateTag(selectedTag.id, { status: newStatus, history: [logEntry, ...selectedTag.history] });
                                  setSelectedTag({...selectedTag, status: newStatus, history: [logEntry, ...selectedTag.history]});
-                                 showToast('Статус изменен');
+                                 toast.success('Статус обновлен');
                              }
                         }}
                     />
                 </div>
 
-                {/* Structure Breakdown / Edit Form */}
-                <div className={`p-4 rounded-xl border ${isEditMode ? 'bg-white border-blue-200 ring-2 ring-blue-100' : 'bg-slate-50 border-slate-100'}`}>
-                    <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Структура тега</h3>
-                        {isEditMode ? (
-                            <span className="text-[10px] text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full font-bold">Edit Mode</span>
-                        ) : (
-                            <span className="text-[10px] text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full font-bold">Read Only</span>
-                        )}
+                {/* Parts Form */}
+                <div>
+                    <div className="flex items-center justify-between mb-2">
+                        <label className="text-xs font-bold text-slate-700">Параметры тега</label>
+                        {isEditMode && <span className="text-[10px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full font-bold">Изменение значений</span>}
                     </div>
-                    <div className="space-y-3">
+                    
+                    <div className={`space-y-1 rounded-lg border overflow-hidden ${isEditMode ? 'border-indigo-200' : 'border-slate-200'}`}>
                         {Object.entries(selectedTag.parts).map(([key, value]) => {
                             const tmpl = templates.find(t => t.id === selectedTag.templateId);
                             const block = tmpl?.blocks.find(b => b.id === key);
-                            const label = block?.categoryId || (block?.isAutoIncrement ? 'Номер' : (block?.isSuffix ? 'Суффикс' : 'Параметр'));
+                            const label = block?.categoryId || (block?.isAutoIncrement ? 'Счетчик' : (block?.isSuffix ? 'Суффикс' : 'Текст'));
 
                             if (!block) return null;
 
                             return (
-                                <div key={key} className="flex justify-between items-center text-sm group">
-                                    <span className="text-slate-500 text-xs w-1/3 truncate" title={label}>{label}</span>
-                                    {isEditMode ? (
-                                        block.type === 'dictionary' ? (
-                                            <select
-                                                className="w-2/3 border-b border-blue-300 focus:border-blue-600 outline-none text-right font-mono font-bold text-slate-900 bg-transparent px-1 cursor-pointer hover:bg-blue-50"
-                                                value={editFormData[key] || ''}
-                                                onChange={(e) => setEditFormData({...editFormData, [key]: e.target.value})}
-                                            >
-                                                <option value="" disabled>Выбрать...</option>
-                                                {dictionaries
-                                                    .filter(d => d.category === block.categoryId)
-                                                    .map(d => (
-                                                        <option key={d.id} value={d.code}>
-                                                            {d.code} - {d.value}
-                                                        </option>
-                                                    ))
-                                                }
-                                            </select>
-                                        ) : (
-                                            <input 
-                                                className="w-2/3 border-b border-blue-300 focus:border-blue-600 outline-none text-right font-mono font-bold text-slate-900 bg-transparent px-1"
-                                                value={editFormData[key] || ''}
-                                                onChange={(e) => setEditFormData({...editFormData, [key]: e.target.value})}
-                                                placeholder={block.isAutoIncrement ? 'Число' : 'Значение'}
-                                            />
-                                        )
-                                    ) : (
-                                        <span className="font-mono font-bold text-slate-800 border-b border-slate-200 border-dashed truncate max-w-[120px]" title={value}>{value}</span>
-                                    )}
+                                <div key={key} className="flex text-sm border-b border-slate-100 last:border-0 bg-white">
+                                    <div className="w-1/3 px-3 py-2 bg-slate-50 border-r border-slate-100 text-xs font-medium text-slate-500 flex items-center truncate" title={label}>
+                                        {label}
+                                    </div>
+                                    <div className="w-2/3 px-3 py-2 font-mono font-bold text-slate-800">
+                                        {isEditMode ? (
+                                            block.type === 'dictionary' ? (
+                                                <select
+                                                    className="w-full bg-transparent outline-none text-indigo-700"
+                                                    value={editFormData[key] || ''}
+                                                    onChange={(e) => setEditFormData({...editFormData, [key]: e.target.value})}
+                                                >
+                                                    <option value="" disabled>...</option>
+                                                    {dictionaries
+                                                        .filter(d => d.category === block.categoryId)
+                                                        .map(d => (
+                                                            <option key={d.id} value={d.code}>{d.code}</option>
+                                                        ))
+                                                    }
+                                                </select>
+                                            ) : (
+                                                <input 
+                                                    className="w-full bg-transparent outline-none text-indigo-700 placeholder-indigo-300"
+                                                    value={editFormData[key] || ''}
+                                                    onChange={(e) => setEditFormData({...editFormData, [key]: e.target.value})}
+                                                />
+                                            )
+                                        ) : value}
+                                    </div>
                                 </div>
                             );
                         })}
                     </div>
                 </div>
 
-                {/* TOGGLE BUTTON FOR NOTES */}
-                <button 
-                    onClick={() => setShowNotes(!showNotes)}
-                    className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors group"
-                >
-                    <div className="flex items-center gap-2 text-slate-600 font-medium text-sm">
-                        <FileText size={16} />
-                        <span>Описание</span>
-                    </div>
-                    {showNotes ? <ChevronUp size={16} className="text-slate-400"/> : <ChevronDown size={16} className="text-slate-400"/>}
-                </button>
+                {/* Notes */}
+                <div>
+                    <button 
+                        onClick={() => setShowNotes(!showNotes)}
+                        className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 hover:text-slate-600 transition-colors w-full"
+                    >
+                        {showNotes ? <ChevronDown size={12}/> : <ChevronRight size={12}/>} Заметки
+                    </button>
+                    {showNotes && (
+                        <textarea 
+                            className="w-full border border-slate-200 rounded-lg p-3 text-sm h-24 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none bg-slate-50 focus:bg-white transition-colors"
+                            placeholder="Добавьте описание..."
+                            value={selectedTag.notes || ''}
+                            onChange={(e) => setSelectedTag({ ...selectedTag, notes: e.target.value })}
+                            onBlur={() => updateTag(selectedTag.id, { notes: selectedTag.notes })}
+                        />
+                    )}
+                </div>
 
-                {/* Collapsible Section: Notes */}
-                {showNotes && (
-                    <div className="space-y-4 animate-in slide-in-from-top-2 duration-200 pt-2">
-                        <div>
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Заметки инженера</label>
-                            <textarea 
-                                className="w-full border border-slate-300 rounded-lg p-3 text-sm h-32 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none shadow-inner bg-slate-50 focus:bg-white transition-colors"
-                                placeholder="Опишите назначение, местоположение или особенности..."
-                                value={selectedTag.notes || ''}
-                                onChange={(e) => setSelectedTag({ ...selectedTag, notes: e.target.value })}
-                                onBlur={() => updateTag(selectedTag.id, { notes: selectedTag.notes })}
-                            />
+                {/* History */}
+                <div>
+                    <button 
+                        onClick={() => setShowHistory(!showHistory)}
+                        className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 hover:text-slate-600 transition-colors w-full"
+                    >
+                        {showHistory ? <ChevronDown size={12}/> : <ChevronRight size={12}/>} История
+                    </button>
+                    {showHistory && (
+                        <div className="space-y-3 pl-3 border-l-2 border-slate-100 ml-1">
+                            {selectedTag.history.map((log, idx) => (
+                                <div key={idx} className="relative">
+                                    <div className="absolute -left-[17px] top-1 w-2.5 h-2.5 rounded-full bg-slate-200 border-2 border-white"></div>
+                                    <div className="text-xs font-bold text-slate-700">{log.action}</div>
+                                    <div className="text-[10px] text-slate-400">{new Date(log.timestamp).toLocaleString('ru-RU')} • {log.user}</div>
+                                    {log.details && <div className="text-[10px] text-slate-500 mt-0.5 bg-slate-50 p-1.5 rounded">{log.details}</div>}
+                                </div>
+                            ))}
                         </div>
-                    </div>
-                )}
-
-                {/* TOGGLE BUTTON FOR HISTORY */}
-                <button 
-                    onClick={() => setShowHistory(!showHistory)}
-                    className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors group"
-                >
-                    <div className="flex items-center gap-2 text-slate-600 font-medium text-sm">
-                        <Clock size={16} />
-                        <span>История изменений</span>
-                    </div>
-                    {showHistory ? <ChevronUp size={16} className="text-slate-400"/> : <ChevronDown size={16} className="text-slate-400"/>}
-                </button>
-
-                {/* Collapsible Section: History */}
-                {showHistory && (
-                    <div className="space-y-4 animate-in slide-in-from-top-2 duration-200 pt-2">
-                        <div>
-                            <div className="space-y-0 relative pl-2">
-                                <div className="absolute left-2 top-2 bottom-2 w-0.5 bg-slate-100"></div>
-                                {selectedTag.history.map((log, idx) => (
-                                    <div key={idx} className="relative pl-6 pb-4 last:pb-0">
-                                        <div className="absolute left-0 top-1 w-4 h-4 bg-white border-2 border-blue-200 rounded-full z-10"></div>
-                                        <div className="text-xs text-slate-800 font-bold">{log.action}</div>
-                                        <div className="text-[10px] text-slate-500 mt-0.5 flex justify-between">
-                                            <span>{log.user}</span>
-                                            <span>{new Date(log.timestamp).toLocaleDateString()} {new Date(log.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                                        </div>
-                                        {log.details && <div className="text-[10px] text-slate-500 mt-1 bg-slate-50 p-2 rounded border border-slate-100 leading-relaxed">{log.details}</div>}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
 
-            <div className="p-4 border-t border-slate-200 bg-slate-50 grid grid-cols-2 gap-3">
+            {/* Footer Actions */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex gap-2">
                 {isEditMode ? (
                     <>
-                        <Button onClick={handleSaveEdit} icon={<Save size={16}/>}>Сохранить</Button>
-                        <Button variant="secondary" onClick={() => setIsEditMode(false)} icon={<RotateCcw size={16}/>}>Отмена</Button>
+                        <Button className="flex-1" onClick={handleSaveEdit} icon={<Save size={16}/>}>Сохранить</Button>
+                        <Button className="flex-1" variant="secondary" onClick={() => setIsEditMode(false)}>Отмена</Button>
                     </>
                 ) : (
                     <>
-                        <Button variant="secondary" onClick={() => handleEditClick(selectedTag)} icon={<PenLine size={16}/>}>Редактировать</Button>
-                        <Button variant="danger" onClick={() => handleDelete(selectedTag.id)} icon={<Trash2 size={16}/>}>Удалить</Button>
+                        <Button className="flex-1" variant="secondary" onClick={() => handleEditClick(selectedTag)} icon={<PenLine size={16}/>}>Правка</Button>
+                        <Button variant="danger" onClick={() => handleDelete(selectedTag.id)}><Trash2 size={16}/></Button>
                     </>
                 )}
             </div>

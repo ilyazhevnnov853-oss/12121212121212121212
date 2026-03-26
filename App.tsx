@@ -8,7 +8,7 @@ import { Registry } from './pages/Registry';
 import { Dictionaries } from './pages/Dictionaries';
 import { Login } from './pages/Login';
 import { ProjectsDashboard } from './pages/ProjectsDashboard';
-import { AdminLibrary } from './pages/AdminLibrary';
+import { Toaster } from 'sonner';
 
 const AppContent: React.FC = () => {
   const { currentUser, currentProjectId } = useStore();
@@ -19,33 +19,29 @@ const AppContent: React.FC = () => {
       return <Login />;
   }
 
-  // 2. Admin Library Mode
-  // If currentProjectId is the special "ADMIN_LIB", show the Admin Library
-  if (currentProjectId === 'ADMIN_LIB') {
-      return <AdminLibrary />;
-  }
-
-  // 3. Logged In, No Project Selected
+  // 2. Logged In, No Project Selected
   if (!currentProjectId) {
       return <ProjectsDashboard />;
   }
 
-  // 4. Project Selected (Main App)
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'dashboard': return <Dashboard />;
-      case 'builder': return <Builder />;
-      case 'generator': return <Generator />;
-      case 'registry': return <Registry />;
-      case 'dictionaries': return <Dictionaries />;
-      // Note: AdminLibrary is now a top-level route (Step 2), accessible via ADMIN_LIB "project ID"
-      default: return <Dashboard />;
-    }
-  };
-
+  // 3. Project Selected (Main App)
   return (
     <Layout activeTab={activeTab} onTabChange={setActiveTab}>
-      {renderContent()}
+      <div className={activeTab === 'dashboard' ? 'h-full w-full' : 'hidden'}>
+        <Dashboard />
+      </div>
+      <div className={activeTab === 'builder' ? 'h-full w-full' : 'hidden'}>
+        <Builder />
+      </div>
+      <div className={activeTab === 'generator' ? 'h-full w-full' : 'hidden'}>
+        <Generator />
+      </div>
+      <div className={activeTab === 'registry' ? 'h-full w-full' : 'hidden'}>
+        <Registry />
+      </div>
+      <div className={activeTab === 'dictionaries' ? 'h-full w-full' : 'hidden'}>
+        <Dictionaries />
+      </div>
     </Layout>
   );
 };
@@ -53,6 +49,7 @@ const AppContent: React.FC = () => {
 export default function App() {
   return (
     <StoreProvider>
+      <Toaster position="top-right" richColors />
       <AppContent />
     </StoreProvider>
   );

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
-import { AppState, Tag, Template, DictionaryItem, ReservedRange, TagStatus, User, GlobalVariable, Project, LibraryTemplate, AbstractAssembly } from './types';
+import { AppState, Tag, Template, DictionaryItem, ReservedRange, TagStatus, User, Project } from './types';
 
 // --- SEED DATA (Default Project) ---
 const DEFAULT_PROJECT_ID = 'proj_pdh2';
@@ -17,12 +17,6 @@ const SEED_DICTIONARIES: DictionaryItem[] = [
   { id: 'v2', projectId: DEFAULT_PROJECT_ID, category: 'Тип Арматуры', code: 'MOV', value: 'Клапан с электроприводом', description: 'Motor Operated Valve' },
 ];
 
-const SEED_GLOBAL_VARS: GlobalVariable[] = [
-    { id: 'gv1', projectId: DEFAULT_PROJECT_ID, key: 'MOTOR_PREFIX', value: 'M', description: 'Префикс электродвигателей' },
-    { id: 'gv2', projectId: DEFAULT_PROJECT_ID, key: 'SEPARATOR', value: '-', description: 'Стандартный разделитель' },
-    { id: 'gv3', projectId: DEFAULT_PROJECT_ID, key: 'HEATER_SUFFIX', value: 'EH', description: 'Суффикс электронагревателей' }
-];
-
 const SEED_TEMPLATES: Template[] = [
   {
     id: 't_mech',
@@ -36,20 +30,6 @@ const SEED_TEMPLATES: Template[] = [
       { id: 'b3', type: 'dictionary', categoryId: 'Проект' },
       { id: 'b4', type: 'number', isAutoIncrement: true, padding: 2 }, 
       { id: 'b5', type: 'text', value: '', isSuffix: true }, 
-    ],
-  },
-  {
-    id: 't_motor_smart',
-    projectId: DEFAULT_PROJECT_ID,
-    name: 'Эл. двигатель (Умная привязка)',
-    description: 'Автоматически берет Код Проекта и Номер от родителя (насоса). Пример: P-21301 -> M-21301',
-    createdAt: new Date().toISOString(),
-    blocks: [
-      { id: 'm1', type: 'global_var', variableKey: 'MOTOR_PREFIX' }, 
-      { id: 'm2', type: 'separator', value: '-' },
-      { id: 'm3', type: 'parent_ref', parentSource: 'wbs' }, 
-      { id: 'm4', type: 'parent_ref', parentSource: 'number' }, 
-      { id: 'm5', type: 'text', value: '', isSuffix: true }, 
     ],
   }
 ];
@@ -70,73 +50,6 @@ const SEED_TAGS: Tag[] = [
 const SEED_COUNTERS = {
     [`${DEFAULT_PROJECT_ID}_P-210`]: 1
 };
-
-// --- GLOBAL LIBRARY MOCK ---
-const SEED_LIBRARY: LibraryTemplate[] = [
-    {
-        id: 'lib_t_isa_inst',
-        type: 'template',
-        name: 'ISA 5.1 Instrument Standard',
-        description: 'Standard loop tagging: [FunctionalID]-[LoopNum]',
-        category: 'Instrumentation',
-        createdAt: new Date().toISOString(),
-        createdBy: 'Admin',
-        blocks: [
-            { id: 'lb1', type: 'dictionary', categoryId: 'Function Code' }, // Abstract Category
-            { id: 'lb2', type: 'separator', value: '-' },
-            { id: 'lb3', type: 'number', isAutoIncrement: true, padding: 4 }
-        ]
-    }
-];
-
-const SEED_ASSEMBLIES: AbstractAssembly[] = [
-    {
-        id: 'asm_ahu',
-        type: 'assembly',
-        name: 'Air Handling Unit (AHU)',
-        description: 'Typical AHU with Supply/Return fans and coils',
-        category: 'HVAC',
-        createdAt: new Date().toISOString(),
-        createdBy: 'Admin',
-        rootComponent: {
-            id: 'root_ahu',
-            name: 'AHU Unit',
-            defaultPrefix: 'AHU',
-            children: [
-                {
-                    id: 'sf_motor',
-                    name: 'Supply Fan Motor',
-                    defaultPrefix: 'M',
-                    children: []
-                },
-                {
-                    id: 'rf_motor',
-                    name: 'Return Fan Motor',
-                    defaultPrefix: 'M',
-                    children: []
-                },
-                {
-                    id: 'hc_valve',
-                    name: 'Heating Coil Valve',
-                    defaultPrefix: 'TV',
-                    children: []
-                },
-                {
-                    id: 'cc_valve',
-                    name: 'Cooling Coil Valve',
-                    defaultPrefix: 'TV',
-                    children: []
-                },
-                {
-                    id: 'p_diff_switch',
-                    name: 'Filter Diff Pressure',
-                    defaultPrefix: 'PDS',
-                    children: []
-                }
-            ]
-        }
-    }
-];
 
 // --- Context Definition ---
 
@@ -167,21 +80,12 @@ interface StoreContextType extends AppState {
   updateDictionaryItem: (id: string, updates: Partial<DictionaryItem>) => void;
   importDictionaryItems: (items: Omit<DictionaryItem, 'projectId'>[]) => void;
   deleteDictionaryItem: (id: string) => void;
-  
-  addGlobalVariable: (item: Omit<GlobalVariable, 'projectId'>) => void;
-  deleteGlobalVariable: (id: string) => void;
 
   addReservedRange: (range: Omit<ReservedRange, 'projectId'>) => void;
   deleteReservedRange: (id: string) => void;
   
   getNextNumber: (prefix: string, padding: number) => number;
   loadProjectData: (data: AppState) => void;
-
-  // Library Actions
-  addGlobalTemplate: (item: LibraryTemplate) => void;
-  addGlobalAssembly: (item: AbstractAssembly) => void;
-  importLibraryTemplate: (templateId: string, categoryMappings: Record<string, string>) => void;
-  instantiateAssembly: (tagsToCreate: { fullTag: string, parentId?: string, description?: string }[]) => void;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -192,8 +96,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const saved = localStorage.getItem('tagengine_db_v4'); // Version bumped
     if (saved) {
         const parsed = JSON.parse(saved);
-        if (!parsed.globalLibrary) parsed.globalLibrary = SEED_LIBRARY;
-        if (!parsed.globalAssemblies) parsed.globalAssemblies = SEED_ASSEMBLIES;
         return parsed;
     }
     return {
@@ -204,10 +106,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       templates: SEED_TEMPLATES,
       dictionaries: SEED_DICTIONARIES,
       reservedRanges: [],
-      globalVariables: SEED_GLOBAL_VARS,
       counters: SEED_COUNTERS,
-      globalLibrary: SEED_LIBRARY,
-      globalAssemblies: SEED_ASSEMBLIES
     };
   });
 
@@ -281,7 +180,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const importProjectConfig = (sourceId: string, targetId: string, options: { templates: boolean, dictionaries: boolean }) => {
       const newTemplates: Template[] = [];
       const newDicts: DictionaryItem[] = [];
-      const newVars: GlobalVariable[] = [];
 
       // Copy Templates
       if (options.templates) {
@@ -293,11 +191,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                   projectId: targetId,
                   name: `${tmpl.name} (Copy)`
               });
-          });
-          
-          const sourceVars = state.globalVariables.filter(v => v.projectId === sourceId);
-          sourceVars.forEach(v => {
-              newVars.push({ ...v, id: crypto.randomUUID(), projectId: targetId });
           });
       }
 
@@ -316,8 +209,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setState(prev => ({
           ...prev,
           templates: [...prev.templates, ...newTemplates],
-          dictionaries: [...prev.dictionaries, ...newDicts],
-          globalVariables: [...prev.globalVariables, ...newVars]
+          dictionaries: [...prev.dictionaries, ...newDicts]
       }));
   };
 
@@ -326,7 +218,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const projectTemplates = useMemo(() => state.templates.filter(t => t.projectId === state.currentProjectId), [state.templates, state.currentProjectId]);
   const projectDicts = useMemo(() => state.dictionaries.filter(t => t.projectId === state.currentProjectId), [state.dictionaries, state.currentProjectId]);
   const projectRanges = useMemo(() => state.reservedRanges.filter(t => t.projectId === state.currentProjectId), [state.reservedRanges, state.currentProjectId]);
-  const projectVars = useMemo(() => state.globalVariables.filter(t => t.projectId === state.currentProjectId), [state.globalVariables, state.currentProjectId]);
 
   // --- Scoped Actions ---
   const injectProject = <T extends object>(item: T): T & { projectId: string } => ({ ...item, projectId: state.currentProjectId || '' });
@@ -347,68 +238,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const importDictionaryItems = (items: Omit<DictionaryItem, 'projectId'>[]) => setState(p => ({ ...p, dictionaries: [...p.dictionaries, ...items.map(i => injectProject(i) as DictionaryItem)] }));
   const deleteDictionaryItem = (id: string) => setState(p => ({ ...p, dictionaries: p.dictionaries.filter(d => d.id !== id) }));
 
-  const addGlobalVariable = (item: Omit<GlobalVariable, 'projectId'>) => setState(p => ({ ...p, globalVariables: [...p.globalVariables, injectProject(item) as GlobalVariable] }));
-  const deleteGlobalVariable = (id: string) => setState(p => ({ ...p, globalVariables: p.globalVariables.filter(d => d.id !== id) }));
-
   const addReservedRange = (range: Omit<ReservedRange, 'projectId'>) => setState(p => ({ ...p, reservedRanges: [...p.reservedRanges, injectProject(range) as ReservedRange] }));
   const deleteReservedRange = (id: string) => setState(p => ({ ...p, reservedRanges: p.reservedRanges.filter(r => r.id !== id) }));
 
-  // --- LIBRARY ACTIONS ---
-
-  const addGlobalTemplate = (item: LibraryTemplate) => {
-      setState(p => ({ ...p, globalLibrary: [...p.globalLibrary, item] }));
-  };
-
-  const addGlobalAssembly = (item: AbstractAssembly) => {
-      setState(p => ({ ...p, globalAssemblies: [...p.globalAssemblies, item] }));
-  };
-
-  const importLibraryTemplate = (templateId: string, categoryMappings: Record<string, string>) => {
-      if (!state.currentProjectId) return;
-      const libItem = state.globalLibrary.find(i => i.id === templateId);
-      if (!libItem) return;
-
-      const newBlocks = libItem.blocks.map(b => {
-          if (b.type === 'dictionary' && b.categoryId) {
-              const mappedCategory = categoryMappings[b.categoryId];
-              return { ...b, categoryId: mappedCategory || b.categoryId };
-          }
-          return b;
-      });
-
-      const newTemplate: Template = {
-          id: crypto.randomUUID(),
-          projectId: state.currentProjectId,
-          name: libItem.name,
-          description: libItem.description,
-          blocks: newBlocks,
-          createdAt: new Date().toISOString()
-      };
-
-      setState(p => ({ ...p, templates: [...p.templates, newTemplate] }));
-  };
-
-  const instantiateAssembly = (tagsToCreate: { fullTag: string, parentId?: string, description?: string }[]) => {
-      if (!state.currentProjectId) return;
-      
-      const newTags: Tag[] = tagsToCreate.map(item => ({
-          id: crypto.randomUUID(),
-          projectId: state.currentProjectId!,
-          fullTag: item.fullTag,
-          parts: {}, // Simplified parts for assembly generated tags for now
-          templateId: '', // Could link to a generic template if needed
-          status: 'draft',
-          parentId: item.parentId,
-          notes: item.description,
-          history: [{ action: 'Импорт Сборки', user: state.currentUser?.name || 'User', timestamp: new Date().toISOString() }],
-          createdAt: new Date().toISOString()
-      }));
-
-      setState(p => ({ ...p, tags: [...p.tags, ...newTags] }));
-  };
-
   const loadProjectData = (data: AppState) => {
-      alert("Full DB Restore is disabled in Multi-Project Mode for safety.");
+      toast.error("Full DB Restore is disabled in Multi-Project Mode for safety.");
   };
 
   const getNextNumber = (prefix: string, padding: number): number => {
@@ -457,7 +291,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         templates: projectTemplates,
         dictionaries: projectDicts,
         reservedRanges: projectRanges,
-        globalVariables: projectVars,
         
         login, logout,
         setCurrentProject, addProject, updateProject, deleteProject, importProjectConfig,
@@ -465,11 +298,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         addTag, addTags, updateTag, updateTagsStatus, deleteTag, deleteTags,
         addTemplate, deleteTemplate,
         addDictionaryItem, updateDictionaryItem, importDictionaryItems, deleteDictionaryItem,
-        addGlobalVariable, deleteGlobalVariable,
         addReservedRange, deleteReservedRange,
         getNextNumber, loadProjectData,
         
-        addGlobalTemplate, addGlobalAssembly, importLibraryTemplate, instantiateAssembly
       }}
     >
       {children}

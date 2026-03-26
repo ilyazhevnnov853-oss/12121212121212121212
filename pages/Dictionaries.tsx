@@ -1,14 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../store';
-import { DictionaryItem, GlobalVariable } from '../types';
+import { DictionaryItem } from '../types';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { Plus, Trash2, BookOpen, Search, Lock, PenLine, Check, X, Variable } from 'lucide-react';
+import { Plus, Trash2, BookOpen, Search, Lock, PenLine, Check, X } from 'lucide-react';
+import { toast } from 'sonner';
 
 export const Dictionaries: React.FC = () => {
   const { 
       dictionaries, addDictionaryItem, updateDictionaryItem, deleteDictionaryItem, 
-      globalVariables, addGlobalVariable, deleteGlobalVariable,
       currentUser
   } = useStore();
   
@@ -33,7 +33,6 @@ export const Dictionaries: React.FC = () => {
 
   // New Item States
   const [newItem, setNewItem] = useState<Partial<DictionaryItem>>({ code: '', value: '', description: '' });
-  const [newVar, setNewVar] = useState<Partial<GlobalVariable>>({ key: '', value: '', description: '' });
 
   // Editing State
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
@@ -41,7 +40,6 @@ export const Dictionaries: React.FC = () => {
 
   const filteredDicts = dictionaries.filter(d => d.category === selectedCategory);
   const isProjectCode = selectedCategory === 'Проект';
-  const isGlobalVars = selectedCategory === 'GlobalVars';
 
   // --- Handlers ---
 
@@ -50,6 +48,9 @@ export const Dictionaries: React.FC = () => {
           setSelectedCategory(newCategoryName);
           setNewCategoryName('');
           setIsCreatingCategory(false);
+          toast.success(`Категория "${newCategoryName}" создана`);
+      } else if (categories.includes(newCategoryName)) {
+          toast.error('Категория с таким именем уже существует');
       }
   };
 
@@ -63,6 +64,9 @@ export const Dictionaries: React.FC = () => {
         description: newItem.description || '',
       });
       setNewItem({ code: '', value: '', description: '' });
+      toast.success('Запись добавлена');
+    } else {
+        toast.error('Заполните обязательные поля (Код и Значение)');
     }
   };
 
@@ -75,18 +79,7 @@ export const Dictionaries: React.FC = () => {
       if (editingItemId) {
           updateDictionaryItem(editingItemId, editValues);
           setEditingItemId(null);
-      }
-  };
-
-  const handleAddVar = () => {
-      if (newVar.key && newVar.value) {
-          addGlobalVariable({
-              id: crypto.randomUUID(),
-              key: newVar.key.toUpperCase(),
-              value: newVar.value,
-              description: newVar.description
-          });
-          setNewVar({ key: '', value: '', description: '' });
+          toast.success('Изменения сохранены');
       }
   };
 
@@ -138,16 +131,6 @@ export const Dictionaries: React.FC = () => {
                             {cat.replace(/^Тип\s+/, '')}
                         </button>
                     ))}
-                    
-                    <div className="my-2 border-t border-slate-200 mx-2"></div>
-                    
-                    <button
-                        onClick={() => setSelectedCategory('GlobalVars')}
-                        className={`w-full text-left px-3 py-2 text-sm rounded-md transition-all flex items-center gap-3 ${isGlobalVars ? 'bg-white text-purple-700 font-bold shadow-sm ring-1 ring-slate-200' : 'text-slate-600 hover:bg-slate-200/50'}`}
-                    >
-                         <Variable size={16} className={isGlobalVars ? "text-purple-500" : "text-slate-400 opacity-70"}/>
-                         Переменные проекта
-                    </button>
                 </div>
             </div>
 
@@ -156,13 +139,13 @@ export const Dictionaries: React.FC = () => {
                 {/* Header */}
                 <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
                     <div className="flex items-center gap-3">
-                         <div className={`p-2 rounded-lg ${isGlobalVars ? 'bg-purple-50 text-purple-600' : 'bg-[#339A2D]/10 text-[#339A2D]'}`}>
-                            {isGlobalVars ? <Variable size={24}/> : <BookOpen size={24}/>}
+                         <div className="p-2 rounded-lg bg-[#339A2D]/10 text-[#339A2D]">
+                            <BookOpen size={24}/>
                          </div>
                          <div>
-                            <h2 className="text-xl font-bold text-slate-800">{isGlobalVars ? 'Переменные проекта' : selectedCategory.replace(/^Тип\s+/, '')}</h2>
+                            <h2 className="text-xl font-bold text-slate-800">{selectedCategory.replace(/^Тип\s+/, '')}</h2>
                             <p className="text-xs text-slate-400 mt-0.5">
-                                {isGlobalVars ? 'Глобальные настройки шаблонов' : (isProjectCode ? 'Код проекта' : 'Справочник значений')}
+                                {isProjectCode ? 'Код проекта' : 'Справочник значений'}
                             </p>
                          </div>
                     </div>
@@ -170,45 +153,8 @@ export const Dictionaries: React.FC = () => {
 
                 {/* Content Area */}
                 <div className="flex-1 overflow-hidden p-6 bg-slate-50 flex flex-col">
-                    {isGlobalVars ? (
-                        <>
-                            {isAdmin && (
-                                <div className="grid grid-cols-4 gap-2 mb-4 p-4 bg-white rounded-lg border border-slate-200 shadow-sm shrink-0">
-                                    <Input placeholder="Ключ (MOTOR_CHAR)" value={newVar.key} onChange={e => setNewVar({...newVar, key: e.target.value.toUpperCase()})} />
-                                    <Input placeholder="Значение (M)" value={newVar.value} onChange={e => setNewVar({...newVar, value: e.target.value})} />
-                                    <Input placeholder="Описание" value={newVar.description} onChange={e => setNewVar({...newVar, description: e.target.value})} />
-                                    <Button onClick={handleAddVar} size="sm" icon={<Plus size={16}/>}>Добавить</Button>
-                                </div>
-                            )}
-
-                            <div className="flex-1 overflow-auto rounded-lg border border-slate-200 bg-white shadow-sm">
-                                <table className="min-w-full divide-y divide-slate-200">
-                                    <thead className="bg-slate-50 sticky top-0">
-                                        <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">KEY</th>
-                                            <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">VALUE</th>
-                                            <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Описание</th>
-                                            <th className="px-6 py-3 w-10"></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {globalVariables.map(item => (
-                                            <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                                                <td className="px-6 py-3 text-sm font-mono text-purple-600 font-bold">{item.key}</td>
-                                                <td className="px-6 py-3 text-sm text-slate-900 font-bold">{item.value}</td>
-                                                <td className="px-6 py-3 text-sm text-slate-600">{item.description}</td>
-                                                <td className="px-6 py-3 text-right">
-                                                    {isAdmin && <button onClick={() => deleteGlobalVariable(item.id)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50"><Trash2 size={16} /></button>}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </>
-                    ) : (
-                        <>
-                             {/* Input Area */}
+                    <>
+                         {/* Input Area */}
                              {isAdmin && !isProjectCode && (
                                 <div className="grid grid-cols-12 gap-3 mb-4 p-4 bg-white rounded-lg border border-slate-200 shadow-sm shrink-0 items-end">
                                     <div className="col-span-3">
@@ -308,7 +254,10 @@ export const Dictionaries: React.FC = () => {
                                                                     {isProjectCode ? (
                                                                             <button onClick={() => handleStartEdit(item)} className="text-[#339A2D] hover:text-[#267c21] p-1 rounded hover:bg-[#339A2D]/10"><PenLine size={16} /></button>
                                                                     ) : (
-                                                                            <button onClick={() => deleteDictionaryItem(item.id)} className="text-red-300 hover:text-red-500 p-1 rounded hover:bg-red-50"><Trash2 size={16} /></button>
+                                                                            <button onClick={() => {
+                                                                                deleteDictionaryItem(item.id);
+                                                                                toast.success('Запись удалена');
+                                                                            }} className="text-red-300 hover:text-red-500 p-1 rounded hover:bg-red-50"><Trash2 size={16} /></button>
                                                                     )}
                                                                 </>
                                                             )
@@ -321,7 +270,6 @@ export const Dictionaries: React.FC = () => {
                                 </table>
                             </div>
                         </>
-                    )}
                 </div>
             </div>
         </div>
