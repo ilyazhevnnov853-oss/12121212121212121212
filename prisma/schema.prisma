@@ -1,33 +1,34 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:C:/Temp/TagEngine/database.sqlite"
 }
 
 model User {
-  id        String    @id @default(uuid())
-  name      String
-  role      String    @default("user")
-  email     String    @unique
-  password  String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id          String    @id @default(uuid())
+  name        String
+  role        String    @default("user")
+  email       String    @unique
+  password    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  projects  Project[] @relation("ProjectCreator")
+  projects    Project[] @relation("ProjectCreator")
   lockedFiles FileItem[] @relation("FileLocker")
 }
 
 model Project {
-  id          String   @id @default(uuid())
-  name        String
-  description String?
-  createdAt   DateTime @default(now())
+  id             String   @id @default(uuid())
+  name           String
+  description    String?
+  createdAt      DateTime @default(now())
   
-  createdById String
-  createdBy   User     @relation("ProjectCreator", fields: [createdById], references: [id])
+  createdById    String
+  createdBy      User     @relation("ProjectCreator", fields: [createdById], references: [id])
 
   tags           Tag[]
   templates      Template[]
@@ -56,7 +57,7 @@ model Template {
   
   name        String
   description String
-  blocks      Json     // Храним TemplateBlock[] как JSONB
+  blocks      String   // Храним TemplateBlock[] как JSON-строку
   createdAt   DateTime @default(now())
   
   tags        Tag[]
@@ -68,7 +69,7 @@ model Tag {
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   
   fullTag     String
-  parts       Json     // Храним Record<string, string> как JSONB
+  parts       String   // Храним Record<string, string> как JSON-строку
   
   templateId  String
   template    Template @relation(fields: [templateId], references: [id], onDelete: Restrict)
@@ -80,7 +81,7 @@ model Tag {
   children    Tag[]    @relation("TagHierarchy")
   
   notes       String?
-  history     Json     // Храним AuditLog[] как JSONB
+  history     String   // Храним AuditLog[] как JSON-строку
   createdAt   DateTime @default(now())
   
   files       FileItem[] @relation("TagFiles")
@@ -97,7 +98,6 @@ model ReservedRange {
   reason    String
 }
 
-// Таблица для хранения счетчиков (замена counters из localStorage)
 model Counter {
   id        String  @id @default(uuid())
   projectId String
